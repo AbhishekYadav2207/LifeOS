@@ -1,0 +1,12 @@
+from pydantic import BaseModel
+from typing import Optional, Dict, Any
+
+class UserStatResponse(BaseModel):
+    total_points: int
+    current_streak: int
+    max_streak: int
+    rank: str
+    username: str
+
+    class Config:
+        from_attributes = True

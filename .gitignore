@@ -1,0 +1,17 @@
+__pycache__/
+*.pyc
+.env
+venv/
+.env.*
+*.log
+.idea/
+.vscode/
+.DS_Store
+alembic/versions/*.pyc
+coverage/
+htmlcov/
+*.db
+*.sqlite3
+.pytest_cache/
+.agents/
+skills-lock.json
