@@ -7,6 +7,7 @@ from app.api.stats import router as stats_router
 
 from app.models import Base
 from app.models import *   # 🔥 THIS LINE IS REQUIRED
+from app.db import engine
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
