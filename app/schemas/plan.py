@@ -1,17 +1,19 @@
 from pydantic import BaseModel
 from typing import List, Optional
-from datetime import date
+from datetime import date, time
 from app.schemas.habit import HabitResponse
 
 class PlanHabitCreate(BaseModel):
     habit_id: int
-    time_window: Optional[str] = "anytime"
+    start_time: Optional[time] = None
+    end_time: Optional[time] = None
     day_config: Optional[str] = "everyday"
 
 class PlanHabitResponse(BaseModel):
     id: int
     habit: HabitResponse
-    time_window: Optional[str]
+    start_time: Optional[time]
+    end_time: Optional[time]
     day_config: Optional[str]
 
     class Config:
@@ -29,7 +31,6 @@ class PlanResponse(BaseModel):
     created_by: Optional[int]
     is_public: bool
     difficulty: str
-    # Note: habit relationships could be loaded if needed
 
     class Config:
         from_attributes = True

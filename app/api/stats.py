@@ -24,7 +24,16 @@ async def get_profile(db: AsyncSession = Depends(get_db), current_user: User = D
         # Default empty profile
         return BaseResponse(
             success=True,
-            data=UserStatResponse(total_points=0, current_streak=0, max_streak=0, rank="Beginner", username=current_user.email.split("@")[0])
+            data=UserStatResponse(
+                total_points=0, 
+                current_streak=0, 
+                max_streak=0, 
+                rank="Beginner",
+                focus_points=0,
+                health_points=0,
+                discipline_points=0,
+                mind_points=0
+            )
         )
         
     current_rank = scoring_svc.get_rank_from_score(user_stat.total_points)
@@ -36,7 +45,10 @@ async def get_profile(db: AsyncSession = Depends(get_db), current_user: User = D
             current_streak=user_stat.current_streak,
             max_streak=user_stat.max_streak,
             rank=current_rank,
-            username=current_user.email.split("@")[0]
+            focus_points=user_stat.focus_points,
+            health_points=user_stat.health_points,
+            discipline_points=user_stat.discipline_points,
+            mind_points=user_stat.mind_points
         )
     )
 

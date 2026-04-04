@@ -6,7 +6,12 @@ class UserStatResponse(BaseModel):
     current_streak: int
     max_streak: int
     rank: str
-    username: str
+    
+    # Category Breakdowns
+    focus_points: int
+    health_points: int
+    discipline_points: int
+    mind_points: int
 
     class Config:
         from_attributes = True

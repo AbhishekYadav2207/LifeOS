@@ -1,6 +1,7 @@
 from pydantic import BaseModel
 from typing import Optional, List
 from datetime import datetime
+from app.models.enums import HabitCategory
 
 class LogCompletionRequest(BaseModel):
     habit_id: int
@@ -10,7 +11,7 @@ class TodaysHabitResponse(BaseModel):
     id: int # log id
     habit_id: int
     name: str
-    category: str
+    category: HabitCategory
     difficulty: str
     base_score: int
     status: str
@@ -19,8 +20,9 @@ class TodaysHabitResponse(BaseModel):
 class LogResponse(BaseModel):
     id: int
     habit_name: str
+    category: HabitCategory
     status: str
-    points_awarded: int
+    awarded_points: int
     late_flag: bool
 
     class Config:

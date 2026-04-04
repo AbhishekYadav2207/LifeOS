@@ -30,6 +30,7 @@ async def register_user(db: AsyncSession, user_data: UserCreate) -> User:
     db.add(initial_stat)
     
     await db.commit()
+    await db.refresh(new_user)
     logger.info(f"Registered user {user_data.email}")
     return new_user
 

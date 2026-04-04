@@ -1,8 +1,9 @@
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 from fastapi import HTTPException, status
-from datetime import date, datetime, timezone
+from datetime import date, datetime
 from typing import List
 
 from app.models.user import User
@@ -10,10 +11,10 @@ from app.models.plan import UserPlan, PlanHabit
 from app.models.habit import Habit
 from app.models.log import DailyLog
 from app.schemas.execution import TodaysHabitResponse, LogCompletionRequest
+from app.core.time import get_current_time
 
 async def initialize_logs_for_today(db: AsyncSession, current_user: User, local_today: date) -> List[DailyLog]:
     """Generates immutable DailyLog records based on the active UserPlan for today if not present."""
-    # Find active plan started on or before today
     plan_query = select(UserPlan).where(
         UserPlan.user_id == current_user.id,
         UserPlan.active == True,
@@ -39,14 +40,13 @@ async def initialize_logs_for_today(db: AsyncSession, current_user: User, local_
     if existing_logs:
         return existing_logs
         
-    # Generate new logs from plan
+    # Generate new logs from plan mapping
     ph_query = select(PlanHabit).where(PlanHabit.plan_id == plan_id)
     ph_result = await db.execute(ph_query)
     plan_habits = ph_result.scalars().all()
     
     new_logs = []
     for ph in plan_habits:
-        # Get actual habit details to snapshot
         h_query = select(Habit).where(Habit.id == ph.habit_id)
         h_result = await db.execute(h_query)
         habit = h_result.scalars().first()
@@ -58,20 +58,31 @@ async def initialize_logs_for_today(db: AsyncSession, current_user: User, local_
             plan_id=plan_id,
             habit_id=habit.id,
             snapshot_habit_name=habit.name,
-            snapshot_category=habit.category,
+            category=habit.category,
             snapshot_difficulty=habit.difficulty,
             snapshot_base_score=habit.base_score,
             date=local_today,
-            status="pending"
+            status="pending",
+            awarded_points=0
         )
         db.add(log)
         new_logs.append(log)
         
-    await db.commit()
+    try:
+        await db.commit()
+        for log in new_logs:
+            await db.refresh(log)
+    except IntegrityError:
+        # Handling the race condition if parallel requests initialized logs simultaneously
+        await db.rollback()
+        logs_result = await db.execute(logs_query)
+        return logs_result.scalars().all()
+        
     return new_logs
 
 async def get_today_logs(db: AsyncSession, current_user: User) -> List[TodaysHabitResponse]:
-    local_today = datetime.now(timezone.utc).date() # For simplicity in V1, assuming UTC execution context
+    ct = get_current_time()
+    local_today = ct.date()
     logs = await initialize_logs_for_today(db, current_user, local_today)
     
     responses = []
@@ -80,7 +91,7 @@ async def get_today_logs(db: AsyncSession, current_user: User) -> List[TodaysHab
             id=log.id,
             habit_id=log.habit_id,
             name=log.snapshot_habit_name,
-            category=log.snapshot_category,
+            category=log.category,
             difficulty=log.snapshot_difficulty,
             base_score=log.snapshot_base_score,
             status=log.status,
@@ -89,7 +100,8 @@ async def get_today_logs(db: AsyncSession, current_user: User) -> List[TodaysHab
     return responses
 
 async def mark_habit_completed(db: AsyncSession, request: LogCompletionRequest, current_user: User) -> DailyLog:
-    local_today = datetime.now(timezone.utc).date()
+    ct = get_current_time()
+    local_today = ct.date()
     
     query = select(DailyLog).where(
         DailyLog.user_id == current_user.id,
@@ -106,13 +118,22 @@ async def mark_habit_completed(db: AsyncSession, request: LogCompletionRequest, 
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Habit already processed")
         
     log.status = "done"
-    log.completion_timestamp = datetime.now(timezone.utc)
+    log.completion_timestamp = ct
     log.note = request.note
     
-    # Very simple late heuristic for V1: after 8 PM UTC is late
-    if log.completion_timestamp.hour >= 20: 
-        log.late_flag = True
-        
+    # Retrieve Plan Habit specific end time for boundary detection
+    ph_q = select(PlanHabit).where(
+        PlanHabit.plan_id == log.plan_id,
+        PlanHabit.habit_id == log.habit_id
+    )
+    ph_result = await db.execute(ph_q)
+    plan_habit = ph_result.scalars().first()
+
+    # Dynamic Late Verification
+    if plan_habit and plan_habit.end_time:
+        if ct.time() > plan_habit.end_time:
+            log.late_flag = True
+    
     await db.commit()
     await db.refresh(log)
     return log

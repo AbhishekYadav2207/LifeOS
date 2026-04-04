@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, Date
+from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, Date, Time
 from sqlalchemy.orm import relationship
 from app.core.database import Base
 
@@ -7,7 +7,7 @@ class Plan(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, index=True, nullable=False)
-    created_by = Column(Integer, ForeignKey("users.id"), nullable=True) # Nullable for preset plans
+    created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
     is_public = Column(Boolean, default=False)
     difficulty = Column(String, nullable=False)
 
@@ -17,8 +17,9 @@ class PlanHabit(Base):
     id = Column(Integer, primary_key=True, index=True)
     plan_id = Column(Integer, ForeignKey("plans.id", ondelete="CASCADE"), nullable=False)
     habit_id = Column(Integer, ForeignKey("habits.id", ondelete="CASCADE"), nullable=False)
-    time_window = Column(String) # e.g., "morning", "evening", "anytime"
-    day_config = Column(String, default="everyday") # e.g., "everyday", "weekdays", "weekends"
+    start_time = Column(Time, nullable=True) # E.g., 08:00:00. Optional based on plan mapping
+    end_time = Column(Time, nullable=True)   # E.g., 20:00:00 bounds for lateness logic
+    day_config = Column(String, default="everyday") 
 
 class UserPlan(Base):
     __tablename__ = "user_plans"

@@ -25,8 +25,9 @@ async def complete_habit(request: LogCompletionRequest, db: AsyncSession = Depen
         data=LogResponse(
             id=log.id, 
             habit_name=log.snapshot_habit_name, 
+            category=log.category.value if hasattr(log.category, 'value') else log.category,
             status=log.status, 
-            points_awarded=log.points_awarded, 
+            awarded_points=log.awarded_points, 
             late_flag=log.late_flag
         ),
         message="Habit marked as completed!"

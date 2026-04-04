@@ -42,7 +42,8 @@ async def create_plan(db: AsyncSession, plan_data: PlanCreate, current_user: Use
         plan_habit = PlanHabit(
             plan_id=new_plan.id,
             habit_id=ph.habit_id,
-            time_window=ph.time_window,
+            start_time=ph.start_time,
+            end_time=ph.end_time,
             day_config=ph.day_config
         )
         db.add(plan_habit)

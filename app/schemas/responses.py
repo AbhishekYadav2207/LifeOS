@@ -7,3 +7,4 @@ class BaseResponse(BaseModel, Generic[T]):
     success: bool
     data: Optional[T] = None
     message: str = ""
+    meta: Optional[dict] = None

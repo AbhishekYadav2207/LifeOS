@@ -2,7 +2,7 @@ from app.core.database import Base
 from app.models.user import User
 from app.models.habit import Habit
 from app.models.plan import Plan, PlanHabit, UserPlan
-from app.models.log import DailyLog
+from app.models.log import DailyLog, DailySummary
 from app.models.stat import UserStat, UserPlanStat
 
 __all__ = [
@@ -13,6 +13,7 @@ __all__ = [
     "PlanHabit",
     "UserPlan",
     "DailyLog",
+    "DailySummary",
     "UserStat",
     "UserPlanStat"
 ]

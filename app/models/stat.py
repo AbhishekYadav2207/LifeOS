@@ -9,6 +9,12 @@ class UserStat(Base):
     total_points = Column(Integer, default=0, nullable=False)
     current_streak = Column(Integer, default=0, nullable=False)
     max_streak = Column(Integer, default=0, nullable=False)
+    
+    # Category splits
+    focus_points = Column(Integer, default=0, nullable=False)
+    health_points = Column(Integer, default=0, nullable=False)
+    discipline_points = Column(Integer, default=0, nullable=False)
+    mind_points = Column(Integer, default=0, nullable=False)
 
 class UserPlanStat(Base):
     __tablename__ = "user_plan_stats"
@@ -19,3 +25,8 @@ class UserPlanStat(Base):
     total_points = Column(Integer, default=0, nullable=False)
     current_streak = Column(Integer, default=0, nullable=False)
     max_streak = Column(Integer, default=0, nullable=False)
+
+    focus_points = Column(Integer, default=0, nullable=False)
+    health_points = Column(Integer, default=0, nullable=False)
+    discipline_points = Column(Integer, default=0, nullable=False)
+    mind_points = Column(Integer, default=0, nullable=False)
