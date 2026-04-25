@@ -15,5 +15,9 @@ htmlcov/
 .pytest_cache/
 .agents/
 skills-lock.json
-log_v1/
+logs/
+deletable/
+out*.txt
+debug.py
+.coverage
 scripts/

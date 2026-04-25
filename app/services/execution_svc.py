@@ -12,6 +12,9 @@ from app.models.habit import Habit
 from app.models.log import DailyLog
 from app.schemas.execution import TodaysHabitResponse, LogCompletionRequest
 from app.core.time import get_current_time
+from sqlalchemy import update
+import asyncio
+from sqlalchemy.exc import OperationalError
 
 async def initialize_logs_for_today(db: AsyncSession, current_user: User, local_today: date) -> List[DailyLog]:
     """Generates immutable DailyLog records based on the active UserPlan for today if not present."""
@@ -103,37 +106,60 @@ async def mark_habit_completed(db: AsyncSession, request: LogCompletionRequest, 
     ct = get_current_time()
     local_today = ct.date()
     
-    query = select(DailyLog).where(
+    # Pre-flight query to get the ID and static properties
+    query = select(DailyLog, PlanHabit.end_time).join(
+        PlanHabit, (PlanHabit.plan_id == DailyLog.plan_id) & (PlanHabit.habit_id == DailyLog.habit_id), isouter=True
+    ).where(
         DailyLog.user_id == current_user.id,
         DailyLog.habit_id == request.habit_id,
         DailyLog.date == local_today
     )
     result = await db.execute(query)
-    log = result.scalars().first()
+    row = result.first()
     
-    if not log:
+    if not row:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Habit log for today not found")
         
-    if log.status != "pending":
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Habit already processed")
+    log, end_time = row
+    
+    # Static Pure Calculations
+    late_flag = False
+    if end_time and ct.time() > end_time:
+        late_flag = True
         
-    log.status = "done"
-    log.completion_timestamp = ct
-    log.note = request.note
-    
-    # Retrieve Plan Habit specific end time for boundary detection
-    ph_q = select(PlanHabit).where(
-        PlanHabit.plan_id == log.plan_id,
-        PlanHabit.habit_id == log.habit_id
-    )
-    ph_result = await db.execute(ph_q)
-    plan_habit = ph_result.scalars().first()
+    points = log.snapshot_base_score // 2 if late_flag else log.snapshot_base_score
 
-    # Dynamic Late Verification
-    if plan_habit and plan_habit.end_time:
-        if ct.time() > plan_habit.end_time:
-            log.late_flag = True
-    
-    await db.commit()
-    await db.refresh(log)
-    return log
+    # Atomic Update Layer with explicit retry
+    max_retries = 2
+    for attempt in range(max_retries):
+        try:
+            stmt = (
+                update(DailyLog)
+                .where(
+                    DailyLog.id == log.id,
+                    DailyLog.user_id == current_user.id,
+                    DailyLog.status == "pending"
+                )
+                .values(
+                    status="done",
+                    awarded_points=points,
+                    completion_timestamp=ct,
+                    late_flag=late_flag,
+                    note=request.note
+                )
+            )
+            update_result = await db.execute(stmt)
+            
+            if update_result.rowcount == 0:
+                await db.rollback()
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Already completed or invalid")
+                
+            await db.commit()
+            await db.refresh(log)
+            return log
+        except OperationalError as e:
+            if "database is locked" in str(e).lower() and attempt < max_retries - 1:
+                await db.rollback()
+                await asyncio.sleep(0.1)
+                continue
+            raise e

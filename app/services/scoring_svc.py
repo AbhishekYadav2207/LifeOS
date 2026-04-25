@@ -5,6 +5,7 @@ from typing import Dict, Any
 
 from app.models.user import User
 from app.models.stat import UserStat, UserPlanStat
+from sqlalchemy.exc import IntegrityError
 from app.models.log import DailyLog, DailySummary
 from app.models.enums import HabitCategory
 
@@ -125,17 +126,22 @@ async def process_day(db: AsyncSession, current_user: User, process_date: date) 
         plan_stat.mind_points += cat_scores[HabitCategory.mind]
 
     # Close the day stat out into idempotency state table
-    db.add(DailySummary(
+    summary = DailySummary(
         user_id=current_user.id,
         date=process_date,
         total_score_change=total_score_change
-    ))
+    )
+    db.add(summary)
 
     new_total = user_stat.total_points if user_stat else 0
     new_streak = user_stat.current_streak if user_stat else 0
     new_rank = get_rank_from_score(new_total)
     
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        return {"message": "Already processed", "score_change": 0, "status": "idempotent"}
     
     return {
         "score_change": total_score_change,
