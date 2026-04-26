@@ -15,7 +15,29 @@ class TodaysHabitResponse(BaseModel):
     difficulty: str
     base_score: int
     status: str
+    awarded_points: int = 0
     completion_timestamp: Optional[datetime] = None
+
+class TodaySummary(BaseModel):
+    """Live preview of today's progress — computed from current log state, not from process_day."""
+    total_tasks: int
+    completed: int
+    pending: int
+    missed: int
+    earned_points: int
+    possible_points: int
+    completion_pct: float
+
+class BackfillInfo(BaseModel):
+    """Transparency about auto-processed missed days."""
+    missed_days_processed: int
+    remaining_unprocessed_days: int
+
+class TodayResponse(BaseModel):
+    """Full response for GET /today — tasks + live preview + backfill info."""
+    tasks: List[TodaysHabitResponse]
+    summary: TodaySummary
+    backfill: BackfillInfo
 
 class LogResponse(BaseModel):
     id: int

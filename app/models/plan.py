@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, Date, Time
+from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, Date, Time, Index
 from sqlalchemy.orm import relationship
 from app.core.database import Base
 
@@ -37,3 +37,16 @@ class UserPlan(Base):
     active = Column(Boolean, default=True)
     start_date = Column(Date, nullable=False)
     end_date = Column(Date, nullable=True)
+
+    __table_args__ = (
+        # Enforce at most one active plan per user at the DB level.
+        # SQLite supports partial indexes: this creates
+        #   CREATE UNIQUE INDEX uix_one_active_plan ON user_plans (user_id) WHERE active = 1
+        Index(
+            "uix_one_active_plan",
+            user_id,
+            unique=True,
+            sqlite_where=(active == True),
+        ),
+    )
+

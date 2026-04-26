@@ -5,13 +5,13 @@ from typing import List, Dict, Any
 from app.api.dependencies import get_db, get_current_user
 from app.models.user import User
 from app.schemas.responses import BaseResponse
-from app.schemas.execution import TodaysHabitResponse, LogCompletionRequest, LogResponse
+from app.schemas.execution import TodayResponse, LogCompletionRequest, LogResponse
 from app.services import execution_svc
 
 router = APIRouter(prefix="/today", tags=["Today"])
 
 
-@router.get("/", response_model=BaseResponse[List[TodaysHabitResponse]])
+@router.get("/", response_model=BaseResponse[TodayResponse])
 async def get_today(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -19,14 +19,19 @@ async def get_today(
     """
     Fetch today's habits based on active plan.
     
+    Returns:
+    - tasks: list of today's habits with status and points
+    - summary: live preview of progress (earned_points, completion_pct, etc.)
+    - backfill: info about auto-processed missed days
+    
     Flow:
     1. Resolve local date using user's timezone
     2. Auto-process any missed past days
     3. Initialize today's logs if needed
-    4. Return today's tasks
+    4. Return tasks + live summary + backfill info
     """
-    logs = await execution_svc.get_today_logs(db, current_user)
-    return BaseResponse(success=True, data=logs)
+    data = await execution_svc.get_today_data(db, current_user)
+    return BaseResponse(success=True, data=data)
 
 
 @router.post("/habit/complete", response_model=BaseResponse[LogResponse])

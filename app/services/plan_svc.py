@@ -240,6 +240,13 @@ async def activate_plan(db: AsyncSession, plan_id: int, current_user: User) -> U
     if not plan:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Plan not found")
 
+    # Ownership check: private plans can only be activated by their creator
+    if not plan.is_public and plan.created_by != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Cannot activate a private plan you did not create"
+        )
+
     local_today = get_local_today(current_user.timezone)
 
     # Deactivate existing active plans
