@@ -31,6 +31,7 @@ class PlanResponse(BaseModel):
     created_by: Optional[int]
     is_public: bool
     difficulty: str
+    habits_count: Optional[int] = None
 
     class Config:
         from_attributes = True

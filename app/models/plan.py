@@ -11,6 +11,9 @@ class Plan(Base):
     is_public = Column(Boolean, default=False)
     difficulty = Column(String, nullable=False)
 
+    # Relationships
+    plan_habits = relationship("PlanHabit", back_populates="plan", cascade="all, delete-orphan")
+
 class PlanHabit(Base):
     __tablename__ = "plan_habits"
     
@@ -19,7 +22,11 @@ class PlanHabit(Base):
     habit_id = Column(Integer, ForeignKey("habits.id", ondelete="CASCADE"), nullable=False)
     start_time = Column(Time, nullable=True) # E.g., 08:00:00. Optional based on plan mapping
     end_time = Column(Time, nullable=True)   # E.g., 20:00:00 bounds for lateness logic
-    day_config = Column(String, default="everyday") 
+    day_config = Column(String, default="everyday")
+
+    # Relationships
+    plan = relationship("Plan", back_populates="plan_habits")
+    habit = relationship("Habit")
 
 class UserPlan(Base):
     __tablename__ = "user_plans"

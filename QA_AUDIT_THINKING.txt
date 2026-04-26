@@ -1,0 +1,57 @@
+# AUTONOMOUS QA AUDIT - THINKING AND IMPLEMENTATION
+
+This document tracks all QA reasoning, the underlying state machine, and edge case implementations mapped to the user constraints for `stateful_qa_auditor.py`.
+
+## 1. The Strict State Machine Design
+The auditor script maintains an internal `STATE` dictionary mapping exactly the required fields.
+```json
+{
+  "user": {},
+  "token": "",
+  "habits": [],
+  "plan": None,
+  "today_logs": []
+}
+```
+
+The script execution prevents out-of-order APIs (e.g., calling `select-plan` when `plan` is None) by doing rigid assertions on the dictionary values prior to hitting the API. If `today_logs` is empty, it attempts validation checks (Rule 6).
+
+## 2. Advanced Scenarios Implementation Plan
+
+### Scenario 1: Partial Completion Scenarios (0%, 50%, 100%)
+- **Implementation**: I will create 2 parallel habits mapped to 1 plan.
+- **Validation**: 
+  - Iteration 1 (0%): `process-day` without completing logs -> score must be zero.
+  - Iteration 2 (50%): mocked time via internal parameter? Wait, standard execution without time-travel patches might not cleanly reset days. The auditor must *not* use mock time hacks, but instead must run through state flows. We can create multiple accounts, each for 0%, 50%, and 100% partial execution tests inside isolated users.
+
+### Scenario 2: Duplicate completion after process-day
+- **Implementation**: Fetch `execution/today`, complete it. Call `stats/process-day`. Then, attempt `execution/complete` on the exact same log ID.
+- **Validation**: Strict rejection logic. HTTP 400.
+
+### Scenario 3: Cross-endpoint consistency
+- **Implementation**: Parse `points` earned from completing a habit. Sum up predicted points. Call `/stats/profile`.
+- **Validation**: The DB points returned by user stats MUST match the aggregation calculated in-memory by the auditor.
+
+### Scenario 4: Category score sum validation
+- **Implementation**: During profile stats check, ensure that the score breakdown by category precisely equals the `total_score` field in stats.
+- **Validation**: Internal integrity cross-check.
+
+### Scenario 5: Plan switching behavior
+- **Implementation**: Create Plan A, Select Plan A. Create Plan B, attempt Select Plan B.
+- **Validation**: Does the system wipe old logs? Or does it deny switching on the same day? The auditor will observe and classify.
+
+### Scenario 6: Repeated process-day idempotency
+- **Implementation**: Post `/stats/process-day`, immediately repeat it an aggressive 3 times.
+- **Validation**: HTTP 200 may be okay, but points/stats profile cannot duplicate the output variables.
+
+### Scenario 7: Timestamp validity checks
+- **Implementation**: Ensure logs output dates matching exact ISO formats, and end_time configurations reflect correct strict typing.
+
+### Scenario 8: Invalid state transitions
+- **Implementation**: Try completing a log that is natively owned by someone else or that has a corrupted ID. Try changing a habit difficulty string to garbage.
+
+### Scenario 9: Execution initialization behavior
+- **Implementation**: Call `/execution/today` -> expect logs. Call it again -> Expect array length exact parity (no DB growth due to lazy constraints).
+
+## 3. Strict Failure Classifications
+Instead of failing tests using raw Pytest, this script uses try/except blocks wrapped in an `AuditorError` system, outputting explicitly formatting tags matching `[TEST ERROR]`, `[SYSTEM BUG]`, and `[DESIGN GAP]`.
