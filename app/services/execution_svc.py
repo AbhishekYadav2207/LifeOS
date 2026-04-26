@@ -3,28 +3,80 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 from fastapi import HTTPException, status
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import List
 
 from app.models.user import User
 from app.models.plan import UserPlan, PlanHabit
 from app.models.habit import Habit
-from app.models.log import DailyLog
+from app.models.log import DailyLog, DailySummary
 from app.schemas.execution import TodaysHabitResponse, LogCompletionRequest
-from app.core.time import get_current_time
-from sqlalchemy import update
+from app.core.time import get_current_time, get_local_today
+from app.services import scoring_svc
+from sqlalchemy import update, func
 import asyncio
 from sqlalchemy.exc import OperationalError
+import logging
+
+logger = logging.getLogger(__name__)
+
+MAX_BACKFILL_DAYS = 7
+
+
+async def _get_active_user_plan(db: AsyncSession, user: User, local_today: date) -> UserPlan | None:
+    """Get the active plan for the user that has started on or before today."""
+    result = await db.execute(
+        select(UserPlan).where(
+            UserPlan.user_id == user.id,
+            UserPlan.active == True,
+            UserPlan.start_date <= local_today,
+        )
+    )
+    return result.scalars().first()
+
+
+async def _auto_process_missed_days(db: AsyncSession, user: User, local_today: date) -> None:
+    """
+    Automatically process any missed days between the last processed date and yesterday.
+    This ensures the system is reliable across server restarts and gaps.
+    
+    Only processes up to MAX_BACKFILL_DAYS to avoid heavy loops.
+    Processes previous day(s), never today.
+    """
+    # Find the last processed date for this user
+    result = await db.execute(
+        select(func.max(DailySummary.date)).where(DailySummary.user_id == user.id)
+    )
+    last_processed = result.scalar()
+
+    # Find the earliest log date if no summary exists yet
+    if last_processed is None:
+        log_result = await db.execute(
+            select(func.min(DailyLog.date)).where(DailyLog.user_id == user.id)
+        )
+        earliest_log = log_result.scalar()
+        if earliest_log is None:
+            return  # No logs exist at all, nothing to backfill
+        last_processed = earliest_log - timedelta(days=1)
+
+    yesterday = local_today - timedelta(days=1)
+
+    if last_processed >= yesterday:
+        return  # Nothing to process
+
+    # Limit backfill range
+    start_date = max(last_processed + timedelta(days=1), local_today - timedelta(days=MAX_BACKFILL_DAYS))
+    
+    current_date = start_date
+    while current_date <= yesterday:
+        logger.info(f"Auto-processing day {current_date} for user {user.id}")
+        await scoring_svc.process_day(db, user, current_date)
+        current_date += timedelta(days=1)
+
 
 async def initialize_logs_for_today(db: AsyncSession, current_user: User, local_today: date) -> List[DailyLog]:
     """Generates immutable DailyLog records based on the active UserPlan for today if not present."""
-    plan_query = select(UserPlan).where(
-        UserPlan.user_id == current_user.id,
-        UserPlan.active == True,
-        UserPlan.start_date <= local_today
-    )
-    result = await db.execute(plan_query)
-    active_user_plan = result.scalars().first()
+    active_user_plan = await _get_active_user_plan(db, current_user, local_today)
     
     if not active_user_plan:
         return []
@@ -84,8 +136,19 @@ async def initialize_logs_for_today(db: AsyncSession, current_user: User, local_
     return new_logs
 
 async def get_today_logs(db: AsyncSession, current_user: User) -> List[TodaysHabitResponse]:
-    ct = get_current_time()
-    local_today = ct.date()
+    """
+    Main entry point for GET /today.
+    
+    1. Resolve local today using user's timezone
+    2. Auto-process any missed past days
+    3. Initialize today's logs
+    4. Return formatted response
+    """
+    local_today = get_local_today(current_user.timezone)
+
+    # Auto-process missed days before returning today's data
+    await _auto_process_missed_days(db, current_user, local_today)
+
     logs = await initialize_logs_for_today(db, current_user, local_today)
     
     responses = []
@@ -103,7 +166,7 @@ async def get_today_logs(db: AsyncSession, current_user: User) -> List[TodaysHab
     return responses
 
 async def mark_habit_completed(db: AsyncSession, request: LogCompletionRequest, current_user: User) -> DailyLog:
-    ct = get_current_time()
+    ct = get_current_time(current_user.timezone)
     local_today = ct.date()
     
     # Pre-flight query to get the ID and static properties
@@ -163,3 +226,13 @@ async def mark_habit_completed(db: AsyncSession, request: LogCompletionRequest, 
                 await asyncio.sleep(0.1)
                 continue
             raise e
+
+
+async def manual_process_day(db: AsyncSession, current_user: User) -> dict:
+    """
+    Manual trigger for POST /today/process.
+    Processes the previous day using the user's timezone.
+    """
+    local_today = get_local_today(current_user.timezone)
+    process_date = local_today - timedelta(days=1)
+    return await scoring_svc.process_day(db, current_user, process_date)

@@ -3,81 +3,136 @@ from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 from sqlalchemy import func
 from fastapi import HTTPException, status
-from datetime import date, timedelta
+from datetime import date
 from app.models.user import User
 from app.models.habit import Habit
 from app.models.plan import Plan, PlanHabit, UserPlan
 from app.schemas.habit import HabitCreate, HabitResponse
-from app.schemas.plan import PlanCreate, PlanResponse, SelectPlanRequest
+from app.schemas.plan import PlanCreate, PlanResponse
+from app.core.time import get_local_today
 import logging
 
 logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
-# Habit catalog (global, unscoped)
+# Habit queries (separated public / mine)
 # ---------------------------------------------------------------------------
 
-async def get_all_habits(db: AsyncSession, category: str | None = None) -> list[Habit]:
-    """Return all habits in the system. Optionally filter by category."""
-    stmt = select(Habit)
+async def get_public_habits(db: AsyncSession, category: str | None = None) -> list[Habit]:
+    """Return all public habits. Optionally filter by category."""
+    stmt = select(Habit).where(Habit.is_public == True)
     if category:
         stmt = stmt.where(Habit.category == category)
     result = await db.execute(stmt)
     return result.scalars().all()
 
 
-async def create_habit(db: AsyncSession, habit_data: HabitCreate) -> Habit:
-    new_habit = Habit(**habit_data.model_dump())
+async def get_my_habits(db: AsyncSession, current_user: User, category: str | None = None) -> list[Habit]:
+    """Return habits created by the current user."""
+    stmt = select(Habit).where(Habit.created_by == current_user.id)
+    if category:
+        stmt = stmt.where(Habit.category == category)
+    result = await db.execute(stmt)
+    return result.scalars().all()
+
+
+async def create_habit(db: AsyncSession, habit_data: HabitCreate, current_user: User) -> Habit:
+    """Create a habit with ownership."""
+    new_habit = Habit(
+        name=habit_data.name,
+        category=habit_data.category,
+        difficulty=habit_data.difficulty,
+        base_score=habit_data.base_score,
+        created_by=current_user.id,
+        is_public=habit_data.is_public,
+    )
     db.add(new_habit)
     await db.commit()
     await db.refresh(new_habit)
     return new_habit
 
 
+async def update_habit(db: AsyncSession, habit_id: int, habit_data: HabitCreate, current_user: User) -> Habit:
+    """Update a habit. Only the creator can update."""
+    result = await db.execute(select(Habit).where(Habit.id == habit_id))
+    habit = result.scalars().first()
+    if not habit:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Habit not found")
+    if habit.created_by != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not your habit")
+
+    habit.name = habit_data.name
+    habit.category = habit_data.category
+    habit.difficulty = habit_data.difficulty
+    habit.base_score = habit_data.base_score
+    habit.is_public = habit_data.is_public
+    await db.commit()
+    await db.refresh(habit)
+    return habit
+
+
+async def delete_habit(db: AsyncSession, habit_id: int, current_user: User) -> None:
+    """Delete a habit. Only the creator can delete."""
+    result = await db.execute(select(Habit).where(Habit.id == habit_id))
+    habit = result.scalars().first()
+    if not habit:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Habit not found")
+    if habit.created_by != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not your habit")
+
+    await db.delete(habit)
+    await db.commit()
+
+
 # ---------------------------------------------------------------------------
-# Plan listing (lightweight — no nested habits)
+# Plan queries (separated public / mine)
 # ---------------------------------------------------------------------------
 
-async def get_public_plans(db: AsyncSession) -> list[dict]:
-    """
-    Return public plans with a habits_count scalar subquery.
-    Avoids N+1: a single SQL query fetches plans + counts in one shot.
-    """
+def _plan_with_count_stmt():
+    """Build a base statement that includes habits_count as a correlated subquery."""
     count_subq = (
         select(func.count(PlanHabit.id))
         .where(PlanHabit.plan_id == Plan.id)
         .correlate(Plan)
         .scalar_subquery()
     )
+    return select(Plan, count_subq.label("habits_count"))
 
-    stmt = select(Plan, count_subq.label("habits_count")).where(Plan.is_public == True)
-    result = await db.execute(stmt)
-    rows = result.all()
 
+def _rows_to_plan_dicts(rows) -> list[dict]:
     plans = []
     for plan, habits_count in rows:
         plan_dict = PlanResponse.model_validate(plan).model_dump()
         plan_dict["habits_count"] = habits_count
         plans.append(plan_dict)
-
     return plans
 
 
+async def get_public_plans(db: AsyncSession) -> list[dict]:
+    """Return public plans with habits_count."""
+    stmt = _plan_with_count_stmt().where(Plan.is_public == True)
+    result = await db.execute(stmt)
+    return _rows_to_plan_dicts(result.all())
+
+
+async def get_my_plans(db: AsyncSession, current_user: User) -> list[dict]:
+    """Return plans created by the current user with habits_count."""
+    stmt = _plan_with_count_stmt().where(Plan.created_by == current_user.id)
+    result = await db.execute(stmt)
+    return _rows_to_plan_dicts(result.all())
+
+
 # ---------------------------------------------------------------------------
-# Plan-scoped habits (main relationship endpoint)
+# Plan-scoped habits
 # ---------------------------------------------------------------------------
 
 async def get_habits_for_plan(db: AsyncSession, plan_id: int) -> list[Habit]:
     """
     Return all Habit objects belonging to the given plan.
-
-    Uses selectinload to avoid N+1:
-      Query 1 → fetch PlanHabit rows for plan_id
-      Query 2 → fetch all related Habit rows in a single IN clause
+    Uses selectinload to avoid N+1.
     Raises 404 if the plan does not exist.
     """
-    # Verify plan exists first
     plan_result = await db.execute(select(Plan).where(Plan.id == plan_id))
     plan = plan_result.scalars().first()
     if not plan:
@@ -98,7 +153,7 @@ async def get_habits_for_plan(db: AsyncSession, plan_id: int) -> list[Habit]:
 
 
 # ---------------------------------------------------------------------------
-# Plan creation & user assignment
+# Plan creation, update, delete
 # ---------------------------------------------------------------------------
 
 async def create_plan(db: AsyncSession, plan_data: PlanCreate, current_user: User) -> Plan:
@@ -127,31 +182,91 @@ async def create_plan(db: AsyncSession, plan_data: PlanCreate, current_user: Use
     return new_plan
 
 
-async def assign_plan_to_user(db: AsyncSession, request: SelectPlanRequest, current_user: User) -> UserPlan:
-    # 1. Verify Plan exists
-    result = await db.execute(select(Plan).where(Plan.id == request.plan_id))
+async def update_plan(db: AsyncSession, plan_id: int, plan_data: PlanCreate, current_user: User) -> Plan:
+    """Update a plan. Only the creator can update."""
+    result = await db.execute(select(Plan).where(Plan.id == plan_id))
+    plan = result.scalars().first()
+    if not plan:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Plan not found")
+    if plan.created_by != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not your plan")
+
+    plan.name = plan_data.name
+    plan.is_public = plan_data.is_public
+    plan.difficulty = plan_data.difficulty
+
+    # Replace plan_habits: delete old, insert new
+    old_phs = await db.execute(select(PlanHabit).where(PlanHabit.plan_id == plan.id))
+    for old_ph in old_phs.scalars().all():
+        await db.delete(old_ph)
+
+    for ph in plan_data.habits:
+        plan_habit = PlanHabit(
+            plan_id=plan.id,
+            habit_id=ph.habit_id,
+            start_time=ph.start_time,
+            end_time=ph.end_time,
+            day_config=ph.day_config
+        )
+        db.add(plan_habit)
+
+    await db.commit()
+    await db.refresh(plan)
+    return plan
+
+
+async def delete_plan(db: AsyncSession, plan_id: int, current_user: User) -> None:
+    """Delete a plan. Only the creator can delete."""
+    result = await db.execute(select(Plan).where(Plan.id == plan_id))
+    plan = result.scalars().first()
+    if not plan:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Plan not found")
+    if plan.created_by != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not your plan")
+
+    await db.delete(plan)
+    await db.commit()
+
+
+# ---------------------------------------------------------------------------
+# Active plan system
+# ---------------------------------------------------------------------------
+
+async def activate_plan(db: AsyncSession, plan_id: int, current_user: User) -> UserPlan:
+    """Deactivate all existing active plans, then activate the given plan starting today."""
+    # Verify plan exists
+    result = await db.execute(select(Plan).where(Plan.id == plan_id))
     plan = result.scalars().first()
     if not plan:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Plan not found")
 
-    # 2. End current active plan for user
-    active_plans = await db.execute(
+    local_today = get_local_today(current_user.timezone)
+
+    # Deactivate existing active plans
+    active_result = await db.execute(
         select(UserPlan).where(UserPlan.user_id == current_user.id, UserPlan.active == True)
     )
-    for p in active_plans.scalars().all():
+    for p in active_result.scalars().all():
         p.active = False
+        p.end_date = local_today
 
-    # 3. Create new user plan mapping, starting tomorrow by default
-    start_dt = request.start_date or (date.today() + timedelta(days=1))
-
+    # Activate new plan
     new_user_plan = UserPlan(
         user_id=current_user.id,
         plan_id=plan.id,
         active=True,
-        start_date=start_dt
+        start_date=local_today,
     )
     db.add(new_user_plan)
     await db.commit()
     await db.refresh(new_user_plan)
-    logger.info(f"User {current_user.id} assigned to plan {plan.id} starting {start_dt}")
+    logger.info(f"User {current_user.id} activated plan {plan.id} starting {local_today}")
     return new_user_plan
+
+
+async def get_active_plan(db: AsyncSession, current_user: User) -> UserPlan | None:
+    """Return the active UserPlan for the current user, or None."""
+    result = await db.execute(
+        select(UserPlan).where(UserPlan.user_id == current_user.id, UserPlan.active == True)
+    )
+    return result.scalars().first()

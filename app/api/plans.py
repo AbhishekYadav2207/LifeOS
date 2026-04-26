@@ -1,65 +1,49 @@
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import List, Optional
+from typing import List
 
 from app.api.dependencies import get_db, get_current_user
 from app.models.user import User
 from app.schemas.responses import BaseResponse
-from app.schemas.habit import HabitCreate, HabitResponse
-from app.schemas.plan import PlanCreate, PlanResponse, SelectPlanRequest
+from app.schemas.plan import PlanCreate, PlanResponse
+from app.schemas.habit import HabitResponse
 from app.services import plan_svc
 
-router = APIRouter(prefix="/plans", tags=["Plans & Habits"])
+router = APIRouter(prefix="/plans", tags=["Plans"])
 
 
 # ---------------------------------------------------------------------------
-# Habits catalog  (MUST be defined before /{plan_id}/habits to avoid routing
-# conflict where FastAPI would match "habits" as a plan_id value)
-# ---------------------------------------------------------------------------
-
-@router.get(
-    "/habits",
-    response_model=BaseResponse[List[HabitResponse]],
-    summary="List all habits (global catalog)",
-    description="Returns every habit in the system. Optionally filter by category.",
-)
-async def list_habits(
-    category: Optional[str] = Query(None, description="Filter by habit category (e.g. health, mind, focus, discipline)"),
-    db: AsyncSession = Depends(get_db),
-):
-    habits = await plan_svc.get_all_habits(db, category=category)
-    return BaseResponse(success=True, data=habits)
-
-
-@router.post(
-    "/habits",
-    response_model=BaseResponse[HabitResponse],
-    status_code=status.HTTP_201_CREATED,
-    summary="Create a new habit",
-)
-async def create_habit(
-    habit_data: HabitCreate,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    habit = await plan_svc.create_habit(db, habit_data)
-    return BaseResponse(success=True, data=habit, message="Habit created")
-
-
-# ---------------------------------------------------------------------------
-# Plans
+# Plan listing (separated public / mine)
 # ---------------------------------------------------------------------------
 
 @router.get(
-    "/",
+    "/public",
     response_model=BaseResponse[List[PlanResponse]],
     summary="List public plans",
-    description="Returns all public plans. Each plan includes a habits_count but NOT the full habit list.",
+    description="Returns all public plans with habits_count.",
 )
 async def list_public_plans(db: AsyncSession = Depends(get_db)):
     plans = await plan_svc.get_public_plans(db)
     return BaseResponse(success=True, data=plans)
 
+
+@router.get(
+    "/mine",
+    response_model=BaseResponse[List[PlanResponse]],
+    summary="List my plans",
+    description="Returns plans created by the current user.",
+)
+async def list_my_plans(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    plans = await plan_svc.get_my_plans(db, current_user)
+    return BaseResponse(success=True, data=plans)
+
+
+# ---------------------------------------------------------------------------
+# Plan CRUD
+# ---------------------------------------------------------------------------
 
 @router.post(
     "/",
@@ -76,25 +60,59 @@ async def create_plan(
     return BaseResponse(success=True, data=PlanResponse.model_validate(plan), message="Plan created")
 
 
-@router.post(
-    "/select-plan",
-    response_model=BaseResponse,
-    summary="Assign a plan to the current user",
+@router.put(
+    "/{plan_id}",
+    response_model=BaseResponse[PlanResponse],
+    summary="Update a plan",
 )
-async def select_plan(
-    request: SelectPlanRequest,
+async def update_plan(
+    plan_id: int,
+    plan_data: PlanCreate,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    user_plan = await plan_svc.assign_plan_to_user(db, request, current_user)
+    plan = await plan_svc.update_plan(db, plan_id, plan_data, current_user)
+    return BaseResponse(success=True, data=PlanResponse.model_validate(plan), message="Plan updated")
+
+
+@router.delete(
+    "/{plan_id}",
+    response_model=BaseResponse,
+    summary="Delete a plan",
+)
+async def delete_plan(
+    plan_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    await plan_svc.delete_plan(db, plan_id, current_user)
+    return BaseResponse(success=True, message="Plan deleted")
+
+
+# ---------------------------------------------------------------------------
+# Plan activation
+# ---------------------------------------------------------------------------
+
+@router.post(
+    "/{plan_id}/activate",
+    response_model=BaseResponse,
+    summary="Activate a plan for the current user",
+    description="Deactivates all existing active plans and activates the given plan starting today.",
+)
+async def activate_plan(
+    plan_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    user_plan = await plan_svc.activate_plan(db, plan_id, current_user)
     return BaseResponse(
         success=True,
-        message=f"Plan applied successfully. It will be active starting {user_plan.start_date}",
+        message=f"Plan activated. Active starting {user_plan.start_date}",
     )
 
 
 # ---------------------------------------------------------------------------
-# Plan-scoped habits  (nested resource endpoint)
+# Plan-scoped habits (nested resource)
 # ---------------------------------------------------------------------------
 
 @router.get(

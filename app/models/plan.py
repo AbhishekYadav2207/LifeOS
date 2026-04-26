@@ -7,7 +7,7 @@ class Plan(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, index=True, nullable=False)
-    created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_by = Column(Integer, ForeignKey("users.id"), nullable=False)
     is_public = Column(Boolean, default=False)
     difficulty = Column(String, nullable=False)
 
@@ -36,3 +36,4 @@ class UserPlan(Base):
     plan_id = Column(Integer, ForeignKey("plans.id", ondelete="CASCADE"), nullable=False)
     active = Column(Boolean, default=True)
     start_date = Column(Date, nullable=False)
+    end_date = Column(Date, nullable=True)

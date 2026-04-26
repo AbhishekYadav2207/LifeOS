@@ -3,6 +3,7 @@ from sqlalchemy.future import select
 from fastapi import HTTPException, status
 from app.models.user import User
 from app.models.stat import UserStat
+from app.models.plan import UserPlan
 from app.schemas.user import UserCreate, UserLogin, TokenData
 from app.core.security import get_password_hash, verify_password, create_access_token
 import logging
@@ -42,4 +43,17 @@ async def login_user(db: AsyncSession, login_data: UserLogin) -> TokenData:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Incorrect email or password")
         
     access_token = create_access_token(data={"sub": str(user.id)})
-    return TokenData(access_token=access_token, token_type="bearer")
+
+    # Check for active plan
+    active_result = await db.execute(
+        select(UserPlan).where(UserPlan.user_id == user.id, UserPlan.active == True)
+    )
+    active_plan = active_result.scalars().first()
+
+    return TokenData(
+        access_token=access_token,
+        token_type="bearer",
+        user_id=user.id,
+        has_active_plan=active_plan is not None,
+        active_plan_id=active_plan.plan_id if active_plan else None,
+    )

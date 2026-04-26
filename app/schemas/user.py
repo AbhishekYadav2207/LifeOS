@@ -21,3 +21,6 @@ class UserResponse(BaseModel):
 class TokenData(BaseModel):
     access_token: str
     token_type: str = "bearer"
+    user_id: int
+    has_active_plan: bool
+    active_plan_id: Optional[int] = None

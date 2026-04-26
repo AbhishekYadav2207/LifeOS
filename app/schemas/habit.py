@@ -7,6 +7,7 @@ class HabitCreate(BaseModel):
     category: HabitCategory
     difficulty: str
     base_score: int = 10
+    is_public: bool = True
 
 class HabitResponse(BaseModel):
     id: int
@@ -14,6 +15,8 @@ class HabitResponse(BaseModel):
     category: HabitCategory
     difficulty: str
     base_score: int
+    created_by: int
+    is_public: bool
 
     class Config:
         from_attributes = True

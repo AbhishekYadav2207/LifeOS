@@ -28,14 +28,10 @@ class PlanCreate(BaseModel):
 class PlanResponse(BaseModel):
     id: int
     name: str
-    created_by: Optional[int]
+    created_by: int
     is_public: bool
     difficulty: str
     habits_count: Optional[int] = None
 
     class Config:
         from_attributes = True
-
-class SelectPlanRequest(BaseModel):
-    plan_id: int
-    start_date: Optional[date] = None # Defaults to tomorrow in service if not provided
