@@ -19,8 +19,8 @@ app = FastAPI(
 )
 
 app.include_router(auth_router, prefix="/api/v1")
-app.include_router(plans_router, prefix="/api/v1")
 app.include_router(habits_router, prefix="/api/v1")
+app.include_router(plans_router, prefix="/api/v1")
 app.include_router(today_router, prefix="/api/v1")
 app.include_router(stats_router, prefix="/api/v1")
 
