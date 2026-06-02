@@ -26,11 +26,9 @@ router = APIRouter(prefix="/plans/habits", tags=["Habits"])
 async def list_habits(
     db: AsyncSession = Depends(get_db),
 ):
-    print("Listing all habits - this endpoint is for debugging and should be removed in production")  # Debug log
     stmt = select(Habit)
     result = await db.execute(stmt)
     habits = result.scalars().all()
-    print("Raw habits from DB:", habits)  # Debug log
     return BaseResponse(success=True, data=habits)
 
 @router.get(
