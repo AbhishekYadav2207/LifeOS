@@ -14,7 +14,7 @@ from app.schemas.execution import (
     TodaysHabitResponse, LogCompletionRequest,
     TodaySummary, BackfillInfo, TodayResponse,
 )
-from app.core.time import get_current_time, get_local_today
+from app.core.time import get_current_time
 from app.services import scoring_svc
 from sqlalchemy import update, func
 import asyncio
@@ -27,12 +27,11 @@ MAX_BACKFILL_DAYS = 7
 
 
 async def _get_active_user_plan(db: AsyncSession, user: User, local_today: date) -> UserPlan | None:
-    """Get the active plan for the user that has started on or before today."""
+    """Get the active plan for the user."""
     result = await db.execute(
         select(UserPlan).where(
             UserPlan.user_id == user.id,
             UserPlan.active == True,
-            UserPlan.start_date <= local_today,
         )
     )
     return result.scalars().first()
@@ -88,66 +87,69 @@ async def _auto_process_missed_days(db: AsyncSession, user: User, local_today: d
     return (days_processed, remaining)
 
 
+init_lock = asyncio.Lock()
+
 async def initialize_logs_for_today(db: AsyncSession, current_user: User, local_today: date) -> List[DailyLog]:
     """Generates immutable DailyLog records based on the active UserPlan for today if not present."""
-    active_user_plan = await _get_active_user_plan(db, current_user, local_today)
-    
-    if not active_user_plan:
-        return []
+    async with init_lock:
+        active_user_plan = await _get_active_user_plan(db, current_user, local_today)
         
-    plan_id = active_user_plan.plan_id
-    
-    # Get existing logs
-    logs_query = select(DailyLog).where(
-        DailyLog.user_id == current_user.id,
-        DailyLog.date == local_today,
-        DailyLog.plan_id == plan_id
-    )
-    logs_result = await db.execute(logs_query)
-    existing_logs = logs_result.scalars().all()
-    
-    if existing_logs:
-        return existing_logs
+        if not active_user_plan:
+            return []
+            
+        plan_id = active_user_plan.plan_id
         
-    # Generate new logs from plan mapping
-    ph_query = select(PlanHabit).where(PlanHabit.plan_id == plan_id)
-    ph_result = await db.execute(ph_query)
-    plan_habits = ph_result.scalars().all()
-    
-    new_logs = []
-    for ph in plan_habits:
-        h_query = select(Habit).where(Habit.id == ph.habit_id)
-        h_result = await db.execute(h_query)
-        habit = h_result.scalars().first()
-        
-        if not habit: continue
-        
-        log = DailyLog(
-            user_id=current_user.id,
-            plan_id=plan_id,
-            habit_id=habit.id,
-            snapshot_habit_name=habit.name,
-            category=habit.category,
-            snapshot_difficulty=habit.difficulty,
-            snapshot_base_score=habit.base_score,
-            date=local_today,
-            status="pending",
-            awarded_points=0
+        # Get existing logs
+        logs_query = select(DailyLog).where(
+            DailyLog.user_id == current_user.id,
+            DailyLog.date == local_today,
+            DailyLog.plan_id == plan_id
         )
-        db.add(log)
-        new_logs.append(log)
-        
-    try:
-        await db.commit()
-        for log in new_logs:
-            await db.refresh(log)
-    except IntegrityError:
-        # Handling the race condition if parallel requests initialized logs simultaneously
-        await db.rollback()
         logs_result = await db.execute(logs_query)
-        return logs_result.scalars().all()
+        existing_logs = logs_result.scalars().all()
         
-    return new_logs
+        if existing_logs:
+            return existing_logs
+            
+        # Generate new logs from plan mapping
+        ph_query = select(PlanHabit).where(PlanHabit.plan_id == plan_id)
+        ph_result = await db.execute(ph_query)
+        plan_habits = ph_result.scalars().all()
+        
+        new_logs = []
+        for ph in plan_habits:
+            h_query = select(Habit).where(Habit.id == ph.habit_id)
+            h_result = await db.execute(h_query)
+            habit = h_result.scalars().first()
+            
+            if not habit: continue
+            
+            log = DailyLog(
+                user_id=current_user.id,
+                plan_id=plan_id,
+                habit_id=habit.id,
+                snapshot_habit_name=habit.name,
+                category=habit.category,
+                snapshot_difficulty=habit.difficulty,
+                snapshot_base_score=habit.base_score,
+                date=local_today,
+                status="pending",
+                awarded_points=0
+            )
+            db.add(log)
+            new_logs.append(log)
+            
+        try:
+            await db.commit()
+            for log in new_logs:
+                await db.refresh(log)
+        except IntegrityError:
+            # Handling the race condition if parallel requests initialized logs simultaneously
+            await db.rollback()
+            logs_result = await db.execute(logs_query)
+            return logs_result.scalars().all()
+            
+        return new_logs
 
 
 def _build_live_summary(logs: List[DailyLog]) -> TodaySummary:
@@ -180,7 +182,7 @@ async def get_today_data(db: AsyncSession, current_user: User) -> TodayResponse:
     3. Initialize today's logs
     4. Return tasks + live summary + backfill info
     """
-    local_today = get_local_today(current_user.timezone)
+    local_today = get_current_time(current_user.timezone).date()
 
     # Auto-process missed days before returning today's data
     days_processed, remaining = await _auto_process_missed_days(db, current_user, local_today)
@@ -262,8 +264,7 @@ async def mark_habit_completed(db: AsyncSession, request: LogCompletionRequest, 
             update_result = await db.execute(stmt)
             
             if update_result.rowcount == 0:
-                await db.rollback()
-                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Already completed or invalid")
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Already processed or invalid")
                 
             await db.commit()
             await db.refresh(log)
@@ -279,8 +280,8 @@ async def mark_habit_completed(db: AsyncSession, request: LogCompletionRequest, 
 async def manual_process_day(db: AsyncSession, current_user: User) -> dict:
     """
     Manual trigger for POST /today/process.
-    Processes the previous day using the user's timezone.
+    Processes today using the user's timezone.
     """
-    local_today = get_local_today(current_user.timezone)
-    process_date = local_today - timedelta(days=1)
+    local_today = get_current_time(current_user.timezone).date()
+    process_date = local_today
     return await scoring_svc.process_day(db, current_user, process_date)

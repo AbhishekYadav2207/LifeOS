@@ -2,6 +2,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from datetime import date
 from typing import Dict, Any
+from app.core.time import get_current_time
 
 from app.models.user import User
 from app.models.stat import UserStat, UserPlanStat

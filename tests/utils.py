@@ -23,8 +23,23 @@ async def create_test_user(db: AsyncSession, email="test@example.com", password=
     await db.refresh(user)
     return user
 
-async def create_test_habit(db: AsyncSession, name="Test Habit", category=HabitCategory.focus, difficulty="easy", base_score=10):
-    habit = Habit(name=name, category=category, difficulty=difficulty, base_score=base_score)
+from sqlalchemy import select
+
+async def create_test_habit(db: AsyncSession, name="Test Habit", category=HabitCategory.focus, difficulty="easy", base_score=10, creator_id: int = None):
+    if creator_id is None:
+        result = await db.execute(select(User))
+        user = result.scalars().first()
+        if not user:
+            user = await create_test_user(db, email="default_creator@example.com")
+        creator_id = user.id
+
+    habit = Habit(
+        name=name,
+        category=category,
+        difficulty=difficulty,
+        base_score=base_score,
+        created_by=creator_id
+    )
     db.add(habit)
     await db.commit()
     await db.refresh(habit)
