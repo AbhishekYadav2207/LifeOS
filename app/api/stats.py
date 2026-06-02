@@ -1,13 +1,14 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
+from typing import Dict, Any
 
 from app.api.dependencies import get_db, get_current_user
 from app.models.user import User
 from app.models.stat import UserStat
 from app.schemas.responses import BaseResponse
 from app.schemas.stat import UserStatResponse
-from app.services import scoring_svc
+from app.services import scoring_svc, execution_svc
 
 router = APIRouter(prefix="/stats", tags=["Statistics"])
 
@@ -24,6 +25,7 @@ async def get_profile(db: AsyncSession = Depends(get_db), current_user: User = D
             success=True,
             data=UserStatResponse(
                 total_points=0, 
+                total_score=0,
                 current_streak=0, 
                 max_streak=0, 
                 rank="Beginner",
@@ -40,6 +42,7 @@ async def get_profile(db: AsyncSession = Depends(get_db), current_user: User = D
         success=True, 
         data=UserStatResponse(
             total_points=user_stat.total_points,
+            total_score=user_stat.total_points,
             current_streak=user_stat.current_streak,
             max_streak=user_stat.max_streak,
             rank=current_rank,
@@ -48,4 +51,20 @@ async def get_profile(db: AsyncSession = Depends(get_db), current_user: User = D
             discipline_points=user_stat.discipline_points,
             mind_points=user_stat.mind_points
         )
+    )
+
+@router.post("/process-day", response_model=BaseResponse[Dict[str, Any]])
+async def process_day(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Manual trigger to process the previous day's logs.
+    Uses the user's timezone to determine "yesterday".
+    """
+    result = await execution_svc.manual_process_day(db, current_user)
+    return BaseResponse(
+        success=True,
+        data=result,
+        message="Daily processing completed"
     )

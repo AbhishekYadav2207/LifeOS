@@ -3,6 +3,7 @@ from typing import Optional, Dict, Any
 
 class UserStatResponse(BaseModel):
     total_points: int
+    total_score: int
     current_streak: int
     max_streak: int
     rank: str
