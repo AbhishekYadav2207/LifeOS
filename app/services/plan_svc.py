@@ -9,7 +9,7 @@ from app.models.habit import Habit
 from app.models.plan import Plan, PlanHabit, UserPlan
 from app.schemas.habit import HabitCreate, HabitResponse
 from app.schemas.plan import PlanCreate, PlanResponse
-from app.core.time import get_local_today
+from app.core.time import get_current_time
 import logging
 
 logger = logging.getLogger(__name__)
@@ -157,10 +157,22 @@ async def get_habits_for_plan(db: AsyncSession, plan_id: int) -> list[Habit]:
 # ---------------------------------------------------------------------------
 
 async def create_plan(db: AsyncSession, plan_data: PlanCreate, current_user: User) -> Plan:
+    habit_ids = list(set(ph.habit_id for ph in plan_data.habits))
+    is_public = plan_data.is_public
+
+    if habit_ids:
+        stmt = select(Habit).where(Habit.id.in_(habit_ids))
+        result = await db.execute(stmt)
+        habits = result.scalars().all()
+        if len(habits) < len(habit_ids):
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="One or more habit IDs do not exist")
+        if any(not h.is_public for h in habits):
+            is_public = False
+
     new_plan = Plan(
         name=plan_data.name,
         created_by=current_user.id,
-        is_public=plan_data.is_public,
+        is_public=is_public,
         difficulty=plan_data.difficulty
     )
     db.add(new_plan)
@@ -191,8 +203,20 @@ async def update_plan(db: AsyncSession, plan_id: int, plan_data: PlanCreate, cur
     if plan.created_by != current_user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not your plan")
 
+    habit_ids = list(set(ph.habit_id for ph in plan_data.habits))
+    is_public = plan_data.is_public
+
+    if habit_ids:
+        stmt = select(Habit).where(Habit.id.in_(habit_ids))
+        result = await db.execute(stmt)
+        habits = result.scalars().all()
+        if len(habits) < len(habit_ids):
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="One or more habit IDs do not exist")
+        if any(not h.is_public for h in habits):
+            is_public = False
+
     plan.name = plan_data.name
-    plan.is_public = plan_data.is_public
+    plan.is_public = is_public
     plan.difficulty = plan_data.difficulty
 
     # Replace plan_habits: delete old, insert new
@@ -247,7 +271,7 @@ async def activate_plan(db: AsyncSession, plan_id: int, current_user: User) -> U
             detail="Cannot activate a private plan you did not create"
         )
 
-    local_today = get_local_today(current_user.timezone)
+    local_today = get_current_time(current_user.timezone).date()
 
     # Deactivate existing active plans
     active_result = await db.execute(

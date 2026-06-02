@@ -5,7 +5,7 @@ from typing import List
 from app.api.dependencies import get_db, get_current_user
 from app.models.user import User
 from app.schemas.responses import BaseResponse
-from app.schemas.plan import PlanCreate, PlanResponse
+from app.schemas.plan import PlanCreate, PlanResponse, SelectPlanRequest
 from app.schemas.habit import HabitResponse
 from app.services import plan_svc
 
@@ -17,7 +17,7 @@ router = APIRouter(prefix="/plans", tags=["Plans"])
 # ---------------------------------------------------------------------------
 
 @router.get(
-    "/public",
+    "/",
     response_model=BaseResponse[List[PlanResponse]],
     summary="List public plans",
     description="Returns all public plans with habits_count.",
@@ -48,7 +48,6 @@ async def list_my_plans(
 @router.post(
     "/",
     response_model=BaseResponse[PlanResponse],
-    status_code=status.HTTP_201_CREATED,
     summary="Create a new plan",
 )
 async def create_plan(
@@ -107,7 +106,25 @@ async def activate_plan(
     user_plan = await plan_svc.activate_plan(db, plan_id, current_user)
     return BaseResponse(
         success=True,
-        message=f"Plan activated. Active starting {user_plan.start_date}",
+        message=f"Plan activated successfully. Active starting {user_plan.start_date}",
+    )
+
+
+@router.post(
+    "/select-plan",
+    response_model=BaseResponse,
+    summary="Select and activate a plan",
+    description="Deactivates existing active plans and activates the selected plan starting today.",
+)
+async def select_plan(
+    request: SelectPlanRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    user_plan = await plan_svc.activate_plan(db, request.plan_id, current_user)
+    return BaseResponse(
+        success=True,
+        message=f"Plan selected and activated successfully. Active starting {user_plan.start_date}",
     )
 
 
