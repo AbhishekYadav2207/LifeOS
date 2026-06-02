@@ -21,12 +21,13 @@ router = APIRouter(prefix="/plans/habits", tags=["Habits"])
     "",
     response_model=BaseResponse[List[HabitResponse]],
     summary="List all habits",
-    description="Returns all habits.",
+    description="Returns all public habits and habits created by the current user.",
 )
 async def list_habits(
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
-    stmt = select(Habit)
+    stmt = select(Habit).where((Habit.is_public == True) | (Habit.created_by == current_user.id))
     result = await db.execute(stmt)
     habits = result.scalars().all()
     return BaseResponse(success=True, data=habits)

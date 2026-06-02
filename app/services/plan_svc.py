@@ -127,7 +127,7 @@ async def get_my_plans(db: AsyncSession, current_user: User) -> list[dict]:
 # Plan-scoped habits
 # ---------------------------------------------------------------------------
 
-async def get_habits_for_plan(db: AsyncSession, plan_id: int) -> list[Habit]:
+async def get_habits_for_plan(db: AsyncSession, plan_id: int, current_user: User) -> list[Habit]:
     """
     Return all Habit objects belonging to the given plan.
     Uses selectinload to avoid N+1.
@@ -139,6 +139,13 @@ async def get_habits_for_plan(db: AsyncSession, plan_id: int) -> list[Habit]:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Plan {plan_id} not found"
+        )
+
+    # Ownership check for private plans
+    if not plan.is_public and plan.created_by != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Cannot view habits of a private plan you do not own"
         )
 
     stmt = (
@@ -161,13 +168,20 @@ async def create_plan(db: AsyncSession, plan_data: PlanCreate, current_user: Use
     is_public = plan_data.is_public
 
     if habit_ids:
-        stmt = select(Habit).where(Habit.id.in_(habit_ids))
+        stmt = select(Habit).where(
+            Habit.id.in_(habit_ids),
+            (Habit.is_public == True) | (Habit.created_by == current_user.id)
+        )
         result = await db.execute(stmt)
         habits = result.scalars().all()
         if len(habits) < len(habit_ids):
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="One or more habit IDs do not exist")
-        if any(not h.is_public for h in habits):
-            is_public = False
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="One or more habit IDs do not exist or are not accessible")
+        
+        if is_public and any(not h.is_public for h in habits):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot include private habits in a public plan"
+            )
 
     new_plan = Plan(
         name=plan_data.name,
@@ -207,13 +221,20 @@ async def update_plan(db: AsyncSession, plan_id: int, plan_data: PlanCreate, cur
     is_public = plan_data.is_public
 
     if habit_ids:
-        stmt = select(Habit).where(Habit.id.in_(habit_ids))
+        stmt = select(Habit).where(
+            Habit.id.in_(habit_ids),
+            (Habit.is_public == True) | (Habit.created_by == current_user.id)
+        )
         result = await db.execute(stmt)
         habits = result.scalars().all()
         if len(habits) < len(habit_ids):
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="One or more habit IDs do not exist")
-        if any(not h.is_public for h in habits):
-            is_public = False
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="One or more habit IDs do not exist or are not accessible")
+        
+        if is_public and any(not h.is_public for h in habits):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot include private habits in a public plan"
+            )
 
     plan.name = plan_data.name
     plan.is_public = is_public

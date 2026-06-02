@@ -30,7 +30,7 @@ async def create_user_with_plan(client: AsyncClient, email: str = "sim@test.com"
     plan_id = p_resp.json()["data"]["id"]
     
     # 4. Select Plan
-    await client.post("/api/v1/plans/select-plan", json={"plan_id": plan_id}, headers=headers)
+    await client.post(f"/api/v1/plans/{plan_id}/activate", headers=headers)
     
     return token, headers
 

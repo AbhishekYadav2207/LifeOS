@@ -50,7 +50,7 @@ async def test_create_plan_and_assign(client, db_session):
     plan_id = plan_res.json()["data"]["id"]
     
     # 2. Assign plan
-    assign_res = await client.post("/api/v1/plans/select-plan", json={"plan_id": plan_id}, headers=headers)
+    assign_res = await client.post(f"/api/v1/plans/{plan_id}/activate", headers=headers)
     assert assign_res.status_code == 200
     assert "successfully" in assign_res.json()["message"]
     
@@ -61,5 +61,5 @@ async def test_assign_invalid_plan(client, db_session):
     token = response.json()["data"]["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
     
-    res = await client.post("/api/v1/plans/select-plan", json={"plan_id": 9999}, headers=headers)
+    res = await client.post("/api/v1/plans/9999/activate", headers=headers)
     assert res.status_code == 404

@@ -116,8 +116,17 @@ async def initialize_logs_for_today(db: AsyncSession, current_user: User, local_
         ph_result = await db.execute(ph_query)
         plan_habits = ph_result.scalars().all()
         
+        # Day of week filtering (0 = Monday, 6 = Sunday)
+        today_weekday = local_today.weekday()
+        
         new_logs = []
         for ph in plan_habits:
+            day_cfg = (ph.day_config or "everyday").lower().strip()
+            if day_cfg == "weekdays" and today_weekday > 4:
+                continue
+            if day_cfg == "weekends" and today_weekday < 5:
+                continue
+                
             h_query = select(Habit).where(Habit.id == ph.habit_id)
             h_result = await db.execute(h_query)
             habit = h_result.scalars().first()

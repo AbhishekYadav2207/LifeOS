@@ -5,7 +5,7 @@ from typing import List
 from app.api.dependencies import get_db, get_current_user
 from app.models.user import User
 from app.schemas.responses import BaseResponse
-from app.schemas.plan import PlanCreate, PlanResponse, SelectPlanRequest
+from app.schemas.plan import PlanCreate, PlanResponse
 from app.schemas.habit import HabitResponse
 from app.services import plan_svc
 
@@ -110,24 +110,6 @@ async def activate_plan(
     )
 
 
-@router.post(
-    "/select-plan",
-    response_model=BaseResponse,
-    summary="Select and activate a plan",
-    description="Deactivates existing active plans and activates the selected plan starting today.",
-)
-async def select_plan(
-    request: SelectPlanRequest,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    user_plan = await plan_svc.activate_plan(db, request.plan_id, current_user)
-    return BaseResponse(
-        success=True,
-        message=f"Plan selected and activated successfully. Active starting {user_plan.start_date}",
-    )
-
-
 # ---------------------------------------------------------------------------
 # Plan-scoped habits (nested resource)
 # ---------------------------------------------------------------------------
@@ -137,7 +119,7 @@ async def select_plan(
     response_model=BaseResponse[List[HabitResponse]],
     summary="Get habits for a specific plan",
     description=(
-        "Returns all habits belonging to the given plan. "
+        "Returns all habits belonging to the given plan if public or owned by the user. "
         "Uses selectinload to avoid N+1 queries. "
         "Returns 404 if the plan does not exist."
     ),
@@ -145,8 +127,9 @@ async def select_plan(
 async def list_plan_habits(
     plan_id: int,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
-    habits = await plan_svc.get_habits_for_plan(db, plan_id)
+    habits = await plan_svc.get_habits_for_plan(db, plan_id, current_user)
     return BaseResponse(
         success=True,
         data=habits,

@@ -75,7 +75,7 @@ async def process_day(db: AsyncSession, current_user: User, process_date: date) 
     user_stat = stat_result.scalars().first()
     
     if user_stat:
-        user_stat.total_points += total_score_change
+        user_stat.total_points = max(0, user_stat.total_points + total_score_change)
         
         # Streak logic correction
         if any_missed:
@@ -85,10 +85,10 @@ async def process_day(db: AsyncSession, current_user: User, process_date: date) 
             if user_stat.current_streak > user_stat.max_streak:
                 user_stat.max_streak = user_stat.current_streak
 
-        user_stat.focus_points += cat_scores[HabitCategory.focus]
-        user_stat.health_points += cat_scores[HabitCategory.health]
-        user_stat.discipline_points += cat_scores[HabitCategory.discipline]
-        user_stat.mind_points += cat_scores[HabitCategory.mind]
+        user_stat.focus_points = max(0, user_stat.focus_points + cat_scores[HabitCategory.focus])
+        user_stat.health_points = max(0, user_stat.health_points + cat_scores[HabitCategory.health])
+        user_stat.discipline_points = max(0, user_stat.discipline_points + cat_scores[HabitCategory.discipline])
+        user_stat.mind_points = max(0, user_stat.mind_points + cat_scores[HabitCategory.mind])
             
     # Plan Stats View
     plan_stat_query = select(UserPlanStat).where(
@@ -113,7 +113,7 @@ async def process_day(db: AsyncSession, current_user: User, process_date: date) 
         db.add(plan_stat)
     
     if plan_stat:
-        plan_stat.total_points += total_score_change
+        plan_stat.total_points = max(0, plan_stat.total_points + total_score_change)
         if any_missed:
             plan_stat.current_streak = 0
         elif all_done and len(logs) > 0:
@@ -121,10 +121,10 @@ async def process_day(db: AsyncSession, current_user: User, process_date: date) 
             if plan_stat.current_streak > plan_stat.max_streak:
                 plan_stat.max_streak = plan_stat.current_streak
 
-        plan_stat.focus_points += cat_scores[HabitCategory.focus]
-        plan_stat.health_points += cat_scores[HabitCategory.health]
-        plan_stat.discipline_points += cat_scores[HabitCategory.discipline]
-        plan_stat.mind_points += cat_scores[HabitCategory.mind]
+        plan_stat.focus_points = max(0, plan_stat.focus_points + cat_scores[HabitCategory.focus])
+        plan_stat.health_points = max(0, plan_stat.health_points + cat_scores[HabitCategory.health])
+        plan_stat.discipline_points = max(0, plan_stat.discipline_points + cat_scores[HabitCategory.discipline])
+        plan_stat.mind_points = max(0, plan_stat.mind_points + cat_scores[HabitCategory.mind])
 
     # Close the day stat out into idempotency state table
     summary = DailySummary(

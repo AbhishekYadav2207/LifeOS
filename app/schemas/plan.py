@@ -41,6 +41,30 @@ class PlanCreate(BaseModel):
                 new_habits.append(item)
         return new_habits
 
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "name": "Morning Routine Plan",
+                "is_public": True,
+                "difficulty": "medium",
+                "habits": [
+                    {
+                        "habit_id": 1,
+                        "start_time": "08:00:00",
+                        "end_time": "09:00:00",
+                        "day_config": "everyday"
+                    },
+                    {
+                        "habit_id": 2,
+                        "start_time": "21:30:00",
+                        "end_time": "22:00:00",
+                        "day_config": "weekdays"
+                    }
+                ]
+            }
+        }
+    }
+
 class PlanResponse(BaseModel):
     id: int
     name: str

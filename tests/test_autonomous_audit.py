@@ -56,7 +56,7 @@ async def test_habit_creation_and_plan_flow(client: AsyncClient):
     habit_id = h_resp.json()["data"]["id"]
     
     # 2. List Habits
-    h_list = await client.get("/api/v1/plans/habits")
+    h_list = await client.get("/api/v1/plans/habits", headers=headers)
     assert h_list.status_code == 200
     assert len(h_list.json()["data"]) >= 1
     
@@ -73,7 +73,7 @@ async def test_habit_creation_and_plan_flow(client: AsyncClient):
     plan_id = p_resp.json()["data"]["id"]
     
     # 4. Select the Plan
-    s_resp = await client.post("/api/v1/plans/select-plan", json={"plan_id": plan_id}, headers=headers)
+    s_resp = await client.post(f"/api/v1/plans/{plan_id}/activate", headers=headers)
     assert s_resp.status_code == 200
     
     # 5. Check Today Execution (Should auto-initialize logs)
@@ -113,7 +113,8 @@ async def test_concurrency_initialization(client: AsyncClient):
     assert h_resp.status_code == 200, h_resp.text
     p_resp = await client.post("/api/v1/plans/", json={"name": "CPlan", "is_public": False, "difficulty": "medium", "habits": [{"habit_id": h_resp.json()["data"]["id"]}]}, headers=headers)
     assert p_resp.status_code == 200
-    await client.post("/api/v1/plans/select-plan", json={"plan_id": p_resp.json()["data"]["id"]}, headers=headers)
+    plan_id = p_resp.json()["data"]["id"]
+    await client.post(f"/api/v1/plans/{plan_id}/activate", headers=headers)
     
     # Fire 5 concurrent requests to /execution/today to attempt recreating logs simultaneously
     tasks = [client.get("/api/v1/execution/today", headers=headers) for _ in range(5)]
