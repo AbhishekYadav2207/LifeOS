@@ -1,6 +1,8 @@
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional
+from sqlalchemy.future import select
+from app.models.habit import Habit
 
 from app.api.dependencies import get_db, get_current_user
 from app.models.user import User
@@ -8,12 +10,28 @@ from app.schemas.responses import BaseResponse
 from app.schemas.habit import HabitCreate, HabitResponse
 from app.services import plan_svc
 
-router = APIRouter(prefix="/habits", tags=["Habits"])
+router = APIRouter(prefix="/plans/habits", tags=["Habits"])
 
 
 # ---------------------------------------------------------------------------
 # Habit listing (separated public / mine)
 # ---------------------------------------------------------------------------
+
+@router.get(
+    "",
+    response_model=BaseResponse[List[HabitResponse]],
+    summary="List all habits",
+    description="Returns all habits.",
+)
+async def list_habits(
+    db: AsyncSession = Depends(get_db),
+):
+    print("Listing all habits - this endpoint is for debugging and should be removed in production")  # Debug log
+    stmt = select(Habit)
+    result = await db.execute(stmt)
+    habits = result.scalars().all()
+    print("Raw habits from DB:", habits)  # Debug log
+    return BaseResponse(success=True, data=habits)
 
 @router.get(
     "/public",
@@ -49,9 +67,8 @@ async def list_my_habits(
 # ---------------------------------------------------------------------------
 
 @router.post(
-    "/",
+    "",
     response_model=BaseResponse[HabitResponse],
-    status_code=status.HTTP_201_CREATED,
     summary="Create a new habit",
 )
 async def create_habit(
