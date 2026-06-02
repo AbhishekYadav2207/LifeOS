@@ -1,7 +1,10 @@
-from pydantic import BaseModel
-from typing import List, Optional
+from pydantic import BaseModel, field_validator
+from typing import List, Optional, Union
 from datetime import date, time
 from app.schemas.habit import HabitResponse
+
+class SelectPlanRequest(BaseModel):
+    plan_id: int
 
 class PlanHabitCreate(BaseModel):
     habit_id: int
@@ -24,6 +27,19 @@ class PlanCreate(BaseModel):
     is_public: bool = False
     difficulty: str
     habits: List[PlanHabitCreate] = []
+
+    @field_validator('habits', mode='before')
+    @classmethod
+    def parse_habits(cls, v):
+        if not isinstance(v, list):
+            return v
+        new_habits = []
+        for item in v:
+            if isinstance(item, int):
+                new_habits.append({"habit_id": item})
+            else:
+                new_habits.append(item)
+        return new_habits
 
 class PlanResponse(BaseModel):
     id: int
