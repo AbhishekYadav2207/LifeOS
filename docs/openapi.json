@@ -90,78 +90,14 @@
         }
       }
     },
-    "/api/v1/plans/habits": {
+    "/api/v1/plans/public": {
       "get": {
         "tags": [
-          "Plans & Habits"
+          "Plans"
         ],
-        "summary": "List Habits",
-        "operationId": "list_habits_api_v1_plans_habits_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BaseResponse_List_HabitResponse__"
-                }
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "tags": [
-          "Plans & Habits"
-        ],
-        "summary": "Create Habit",
-        "operationId": "create_habit_api_v1_plans_habits_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/HabitCreate"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BaseResponse_HabitResponse_"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ]
-      }
-    },
-    "/api/v1/plans/": {
-      "get": {
-        "tags": [
-          "Plans & Habits"
-        ],
-        "summary": "List Public Plans",
-        "operationId": "list_public_plans_api_v1_plans__get",
+        "summary": "List public plans",
+        "description": "Returns all public plans with habits_count.",
+        "operationId": "list_public_plans_api_v1_plans_public_get",
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -174,12 +110,41 @@
             }
           }
         }
-      },
+      }
+    },
+    "/api/v1/plans/mine": {
+      "get": {
+        "tags": [
+          "Plans"
+        ],
+        "summary": "List my plans",
+        "description": "Returns plans created by the current user.",
+        "operationId": "list_my_plans_api_v1_plans_mine_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse_List_PlanResponse__"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/plans/": {
       "post": {
         "tags": [
-          "Plans & Habits"
+          "Plans"
         ],
-        "summary": "Create Plan",
+        "summary": "Create a new plan",
         "operationId": "create_plan_api_v1_plans__post",
         "requestBody": {
           "content": {
@@ -192,7 +157,7 @@
           "required": true
         },
         "responses": {
-          "200": {
+          "201": {
             "description": "Successful Response",
             "content": {
               "application/json": {
@@ -215,28 +180,89 @@
         },
         "security": [
           {
-            "OAuth2PasswordBearer": []
+            "HTTPBearer": []
           }
         ]
       }
     },
-    "/api/v1/plans/select-plan": {
-      "post": {
+    "/api/v1/plans/{plan_id}": {
+      "put": {
         "tags": [
-          "Plans & Habits"
+          "Plans"
         ],
-        "summary": "Select Plan",
-        "operationId": "select_plan_api_v1_plans_select_plan_post",
+        "summary": "Update a plan",
+        "operationId": "update_plan_api_v1_plans__plan_id__put",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "plan_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Plan Id"
+            }
+          }
+        ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/SelectPlanRequest"
+                "$ref": "#/components/schemas/PlanCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse_PlanResponse_"
+                }
               }
             }
           },
-          "required": true
-        },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Plans"
+        ],
+        "summary": "Delete a plan",
+        "operationId": "delete_plan_api_v1_plans__plan_id__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "plan_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Plan Id"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -258,29 +284,243 @@
               }
             }
           }
-        },
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ]
+        }
       }
     },
-    "/api/v1/execution/today": {
-      "get": {
+    "/api/v1/plans/{plan_id}/activate": {
+      "post": {
         "tags": [
-          "Daily Execution"
+          "Plans"
         ],
-        "summary": "Get Today",
-        "description": "Fetch today's habits based on active plan.",
-        "operationId": "get_today_api_v1_execution_today_get",
+        "summary": "Activate a plan for the current user",
+        "description": "Deactivates all existing active plans and activates the given plan starting today.",
+        "operationId": "activate_plan_api_v1_plans__plan_id__activate_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "plan_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Plan Id"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/BaseResponse_List_TodaysHabitResponse__"
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/plans/{plan_id}/habits": {
+      "get": {
+        "tags": [
+          "Plans"
+        ],
+        "summary": "Get habits for a specific plan",
+        "description": "Returns all habits belonging to the given plan. Uses selectinload to avoid N+1 queries. Returns 404 if the plan does not exist.",
+        "operationId": "list_plan_habits_api_v1_plans__plan_id__habits_get",
+        "parameters": [
+          {
+            "name": "plan_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Plan Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse_List_HabitResponse__"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/habits/public": {
+      "get": {
+        "tags": [
+          "Habits"
+        ],
+        "summary": "List public habits",
+        "description": "Returns all public habits. Optionally filter by category.",
+        "operationId": "list_public_habits_api_v1_habits_public_get",
+        "parameters": [
+          {
+            "name": "category",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by habit category",
+              "title": "Category"
+            },
+            "description": "Filter by habit category"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse_List_HabitResponse__"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/habits/mine": {
+      "get": {
+        "tags": [
+          "Habits"
+        ],
+        "summary": "List my habits",
+        "description": "Returns habits created by the current user. Optionally filter by category.",
+        "operationId": "list_my_habits_api_v1_habits_mine_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "category",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by habit category",
+              "title": "Category"
+            },
+            "description": "Filter by habit category"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse_List_HabitResponse__"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/habits/": {
+      "post": {
+        "tags": [
+          "Habits"
+        ],
+        "summary": "Create a new habit",
+        "operationId": "create_habit_api_v1_habits__post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HabitCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse_HabitResponse_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -288,19 +528,148 @@
         },
         "security": [
           {
-            "OAuth2PasswordBearer": []
+            "HTTPBearer": []
           }
         ]
       }
     },
-    "/api/v1/execution/habit/complete": {
+    "/api/v1/habits/{habit_id}": {
+      "put": {
+        "tags": [
+          "Habits"
+        ],
+        "summary": "Update a habit",
+        "operationId": "update_habit_api_v1_habits__habit_id__put",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "habit_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Habit Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HabitCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse_HabitResponse_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Habits"
+        ],
+        "summary": "Delete a habit",
+        "operationId": "delete_habit_api_v1_habits__habit_id__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "habit_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Habit Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/today/": {
+      "get": {
+        "tags": [
+          "Today"
+        ],
+        "summary": "Get Today",
+        "description": "Fetch today's habits based on active plan.\n\nReturns:\n- tasks: list of today's habits with status and points\n- summary: live preview of progress (earned_points, completion_pct, etc.)\n- backfill: info about auto-processed missed days\n\nFlow:\n1. Resolve local date using user's timezone\n2. Auto-process any missed past days\n3. Initialize today's logs if needed\n4. Return tasks + live summary + backfill info",
+        "operationId": "get_today_api_v1_today__get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse_TodayResponse_"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/today/habit/complete": {
       "post": {
         "tags": [
-          "Daily Execution"
+          "Today"
         ],
         "summary": "Complete Habit",
         "description": "Mark a daily habit as completed.",
-        "operationId": "complete_habit_api_v1_execution_habit_complete_post",
+        "operationId": "complete_habit_api_v1_today_habit_complete_post",
         "requestBody": {
           "content": {
             "application/json": {
@@ -335,7 +704,34 @@
         },
         "security": [
           {
-            "OAuth2PasswordBearer": []
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/today/process": {
+      "post": {
+        "tags": [
+          "Today"
+        ],
+        "summary": "Process Day",
+        "description": "Manual trigger to process the previous day's logs.\nUses the user's timezone to determine \"yesterday\".\n\nThis is a manual override / debugging tool only.\nThe system auto-processes missed days when GET /today is called.",
+        "operationId": "process_day_api_v1_today_process_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BaseResponse_Dict_str__Any__"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
           }
         ]
       }
@@ -343,7 +739,7 @@
     "/api/v1/stats/profile": {
       "get": {
         "tags": [
-          "Statistics & Processing"
+          "Statistics"
         ],
         "summary": "Get Profile",
         "description": "Get the current aggregated stats for the user's profile.",
@@ -362,34 +758,7 @@
         },
         "security": [
           {
-            "OAuth2PasswordBearer": []
-          }
-        ]
-      }
-    },
-    "/api/v1/stats/process-day": {
-      "post": {
-        "tags": [
-          "Statistics & Processing"
-        ],
-        "summary": "Process Day",
-        "description": "Manual trigger to process today's logs for the authenticated user.\nSimulates the end of day evaluation.",
-        "operationId": "process_day_api_v1_stats_process_day_post",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BaseResponse_Dict_str__Any__"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
+            "HTTPBearer": []
           }
         ]
       }
@@ -416,6 +785,25 @@
   },
   "components": {
     "schemas": {
+      "BackfillInfo": {
+        "properties": {
+          "missed_days_processed": {
+            "type": "integer",
+            "title": "Missed Days Processed"
+          },
+          "remaining_unprocessed_days": {
+            "type": "integer",
+            "title": "Remaining Unprocessed Days"
+          }
+        },
+        "type": "object",
+        "required": [
+          "missed_days_processed",
+          "remaining_unprocessed_days"
+        ],
+        "title": "BackfillInfo",
+        "description": "Transparency about auto-processed missed days."
+      },
       "BaseResponse": {
         "properties": {
           "success": {
@@ -625,50 +1013,6 @@
         ],
         "title": "BaseResponse[List[PlanResponse]]"
       },
-      "BaseResponse_List_TodaysHabitResponse__": {
-        "properties": {
-          "success": {
-            "type": "boolean",
-            "title": "Success"
-          },
-          "data": {
-            "anyOf": [
-              {
-                "items": {
-                  "$ref": "#/components/schemas/TodaysHabitResponse"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Data"
-          },
-          "message": {
-            "type": "string",
-            "title": "Message",
-            "default": ""
-          },
-          "meta": {
-            "anyOf": [
-              {
-                "additionalProperties": true,
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Meta"
-          }
-        },
-        "type": "object",
-        "required": [
-          "success"
-        ],
-        "title": "BaseResponse[List[TodaysHabitResponse]]"
-      },
       "BaseResponse_LogResponse_": {
         "properties": {
           "success": {
@@ -748,6 +1092,46 @@
           "success"
         ],
         "title": "BaseResponse[PlanResponse]"
+      },
+      "BaseResponse_TodayResponse_": {
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "title": "Success"
+          },
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TodayResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "default": ""
+          },
+          "meta": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Meta"
+          }
+        },
+        "type": "object",
+        "required": [
+          "success"
+        ],
+        "title": "BaseResponse[TodayResponse]"
       },
       "BaseResponse_TokenData_": {
         "properties": {
@@ -909,6 +1293,11 @@
             "type": "integer",
             "title": "Base Score",
             "default": 10
+          },
+          "is_public": {
+            "type": "boolean",
+            "title": "Is Public",
+            "default": true
           }
         },
         "type": "object",
@@ -939,6 +1328,14 @@
           "base_score": {
             "type": "integer",
             "title": "Base Score"
+          },
+          "created_by": {
+            "type": "integer",
+            "title": "Created By"
+          },
+          "is_public": {
+            "type": "boolean",
+            "title": "Is Public"
           }
         },
         "type": "object",
@@ -947,7 +1344,9 @@
           "name",
           "category",
           "difficulty",
-          "base_score"
+          "base_score",
+          "created_by",
+          "is_public"
         ],
         "title": "HabitResponse"
       },
@@ -1103,14 +1502,7 @@
             "title": "Name"
           },
           "created_by": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
+            "type": "integer",
             "title": "Created By"
           },
           "is_public": {
@@ -1120,6 +1512,17 @@
           "difficulty": {
             "type": "string",
             "title": "Difficulty"
+          },
+          "habits_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Habits Count"
           }
         },
         "type": "object",
@@ -1132,30 +1535,74 @@
         ],
         "title": "PlanResponse"
       },
-      "SelectPlanRequest": {
+      "TodayResponse": {
         "properties": {
-          "plan_id": {
-            "type": "integer",
-            "title": "Plan Id"
+          "tasks": {
+            "items": {
+              "$ref": "#/components/schemas/TodaysHabitResponse"
+            },
+            "type": "array",
+            "title": "Tasks"
           },
-          "start_date": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Start Date"
+          "summary": {
+            "$ref": "#/components/schemas/TodaySummary"
+          },
+          "backfill": {
+            "$ref": "#/components/schemas/BackfillInfo"
           }
         },
         "type": "object",
         "required": [
-          "plan_id"
+          "tasks",
+          "summary",
+          "backfill"
         ],
-        "title": "SelectPlanRequest"
+        "title": "TodayResponse",
+        "description": "Full response for GET /today \u2014 tasks + live preview + backfill info."
+      },
+      "TodaySummary": {
+        "properties": {
+          "total_tasks": {
+            "type": "integer",
+            "title": "Total Tasks"
+          },
+          "completed": {
+            "type": "integer",
+            "title": "Completed"
+          },
+          "pending": {
+            "type": "integer",
+            "title": "Pending"
+          },
+          "missed": {
+            "type": "integer",
+            "title": "Missed"
+          },
+          "earned_points": {
+            "type": "integer",
+            "title": "Earned Points"
+          },
+          "possible_points": {
+            "type": "integer",
+            "title": "Possible Points"
+          },
+          "completion_pct": {
+            "type": "number",
+            "title": "Completion Pct"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total_tasks",
+          "completed",
+          "pending",
+          "missed",
+          "earned_points",
+          "possible_points",
+          "completion_pct"
+        ],
+        "title": "TodaySummary",
+        "description": "Live preview of today's progress \u2014 computed from current log state, not from process_day."
       },
       "TodaysHabitResponse": {
         "properties": {
@@ -1185,6 +1632,11 @@
           "status": {
             "type": "string",
             "title": "Status"
+          },
+          "awarded_points": {
+            "type": "integer",
+            "title": "Awarded Points",
+            "default": 0
           },
           "completion_timestamp": {
             "anyOf": [
@@ -1221,11 +1673,32 @@
             "type": "string",
             "title": "Token Type",
             "default": "bearer"
+          },
+          "user_id": {
+            "type": "integer",
+            "title": "User Id"
+          },
+          "has_active_plan": {
+            "type": "boolean",
+            "title": "Has Active Plan"
+          },
+          "active_plan_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active Plan Id"
           }
         },
         "type": "object",
         "required": [
-          "access_token"
+          "access_token",
+          "user_id",
+          "has_active_plan"
         ],
         "title": "TokenData"
       },
@@ -1386,14 +1859,9 @@
       }
     },
     "securitySchemes": {
-      "OAuth2PasswordBearer": {
-        "type": "oauth2",
-        "flows": {
-          "password": {
-            "scopes": {},
-            "tokenUrl": "api/auth/login"
-          }
-        }
+      "HTTPBearer": {
+        "type": "http",
+        "scheme": "bearer"
       }
     }
   }
