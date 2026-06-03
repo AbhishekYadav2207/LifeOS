@@ -1,5 +1,5 @@
 # Database Integrity Report
-Generated: 2026-06-03T09:38:17.104852
+Generated: 2026-06-03T10:13:36.139345
 
 This report documents the status of database structure validations run dynamically during testing and after simulation.
 

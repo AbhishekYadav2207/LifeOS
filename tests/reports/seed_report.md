@@ -1,5 +1,5 @@
 # Seed Data Report
-Generated: 2026-06-03T09:38:17.103840
+Generated: 2026-06-03T10:13:36.138340
 
 This report details the production-scale seed data successfully generated in the database.
 
@@ -7,9 +7,9 @@ This report details the production-scale seed data successfully generated in the
 * **Users Created**: 9 (Roles: Student, Software Engineer, UPSC Aspirant, Fitness Enthusiast, Entrepreneur, Researcher, Creator, Working Professional, Manager)
 * **Habits Created**: 85 (Mix of public base library & user private custom habits)
 * **Plans Created**: 32 (25 Public Plans & 7 Private Plans)
-* **Plan Habits Mapped**: 195 (Each plan contains 3-8 mapped habits)
+* **Plan Habits Mapped**: 194 (Each plan contains 3-8 mapped habits)
 * **User Plans Activated**: 9 (All users have active plans)
-* **Daily Logs Initialized**: 578 (Formed across a 14-day simulation)
+* **Daily Logs Initialized**: 470 (Formed across a 14-day simulation)
 * **Daily Summaries Processed**: 126 (Ensures daily processing ran cleanly)
 * **User Stats records**: 9
 * **User Plan Stats records**: 9

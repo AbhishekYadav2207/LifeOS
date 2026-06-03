@@ -26,10 +26,10 @@ The backend relies on modern, cutting-edge Python standards to ensure concurrent
 The application strictly adheres to Domain-Driven Design (DDD) principles, leveraging a modular, dependency-injected architecture divided into highly cohesive, loosely coupled segments.
 
 ### 3.1. The Data Lifecycle & State Machine
-1. **Plans Engine System**: User intents (`UserPlan`) are dynamically mapped to specific behavioral criteria (`Habit` -> `PlanHabit`). Because human behavior is non-linear, modifications to a User's Plan (or new subscriptions) apply on their *next temporal day boundary*. This guarantees that mid-day changes do not corrupt active executions.
-2. **Immutable Snapshot Logs**: Executions (`DailyLogs`) are preserved as immutable snapshots. If a root `Habit` changes its severity or base scoring parameters internally, past aggregated statistics stay utterly unchanged. The logs are a cryptographic-style ledger of past behavior.
-3. **Execution Service Boundary**: The `/today` boundary dynamically aggregates localized temporal parameters to generate "Pending" logs against active user constraints. It is timezone-aware and respects the localized midnight of the end-user.
-4. **Scoring Service Engine**: Evaluates behaviors asynchronously or via a cron-triggered `/process-day`. "Pending" events regress to failure states (imposing a static 50% penalty on total daily gains), driving an incremental, highly concurrent `UserStat` streak update matrix that calculates long-term viability.
+1. **Plans Engine System**: User intents (`UserPlan`) are dynamically mapped to specific behavioral criteria (`Habit` -> `PlanHabit`). Plan activation (`POST /api/v1/plans/{plan_id}/activate`) takes effect **today**, deactivating previous active user plans by setting their `end_date = local_today` and starting the new plan on the same day (`start_date = local_today`).
+2. **Immutable Snapshot Logs**: Executions (`DailyLogs`) are preserved as immutable snapshots. If a root `Habit` changes its severity or base scoring parameters internally, past completed log statistics stay unchanged.
+3. **Execution Service Boundary**: The `/api/v1/today/` boundary dynamically aggregates localized temporal parameters based on the user's timezone to generate "Pending" logs against the active plan. It automatically executes a backfill processing for any unprocessed days prior to today (up to a 7-day limit).
+4. **Scoring Service Engine**: Evaluates behaviors via `/api/v1/today/process` (manually or as part of day transition) or during auto-backfills. "Pending" events regress to failure states (imposing a 50% penalty deduction of `-(base_score // 2)`), updating total points (with a floor of 0) and streaks (reset to 0 if any task is missed; incremented if all are completed).
 
 ### 3.2. Directory & Module Structure
 * `app/api/`: Routing layer containing all FastAPI routers broken down by domain (Auth, Habits, Plans, Stats, Execution).
@@ -80,33 +80,37 @@ A comprehensive 9-tier hierarchical rank system designed for long-term psycholog
 All endpoints are prefixed with `/api/v1` and utilize strict JSON request/response formats mapped precisely to Pydantic schemas. Standardized responses wrap all data in a `BaseResponse` object containing `success`, `data`, `message`, and `meta` fields.
 
 ### 5.1. Authentication Operations
-* `POST /auth/login`: Authenticates user credentials.
+* `POST /api/v1/auth/register`: Signs up a user given a JSON of `email`, `password`, and optional `timezone`.
+* `POST /api/v1/auth/login`: Authenticates user credentials and issues a JWT token.
   * **Payload**: `email`, `password`.
-  * **Response**: Returns a localized session JWT token.
+  * **Response**: Returns a Bearer access token.
 
 ### 5.2. Habit Management Operations
-* `GET /habits/public`: Retrieves the global catalog of community habits. Supports `category` query filters.
-* `GET /habits/mine`: Retrieves authenticated user's private habits.
-* `POST /habits/`: Creates a new foundational habit.
+* `GET /api/v1/habits/public`: Retrieves the global catalog of community habits. Supports `category` query filters.
+* `GET /api/v1/habits/mine`: Retrieves authenticated user's private habits.
+* `POST /api/v1/habits/`: Creates a new foundational habit.
   * **Payload**: `name`, `category`, `difficulty`, `base_score` (optional), `is_public` (optional).
-* `PUT /habits/{habit_id}`: Updates existing parameters of a habit dynamically.
-* `DELETE /habits/{habit_id}`: Soft-deletes or completely purges a habit.
+* `PUT /api/v1/habits/{habit_id}`: Updates existing parameters of a habit dynamically (owner only).
+* `DELETE /api/v1/habits/{habit_id}`: Purges a habit (owner only).
 
 ### 5.3. Plan Management Operations
-* `GET /plans/`: Lists available macroscopic plans.
-* `POST /plans/`: Constructs a new plan encapsulating multiple habits.
-  * **Payload**: `name`, `difficulty`, `habits` (array of IDs), `is_public`.
-* `POST /plans/select-plan`: Subscribes the authenticated user to a specific plan.
-  * **Payload**: `plan_id`, `start_date`.
+* `GET /api/v1/plans/`: Lists available public plans.
+* `GET /api/v1/plans/mine`: Lists plans created by the authenticated user.
+* `POST /api/v1/plans/`: Constructs a new plan encapsulating multiple habits.
+  * **Payload**: `name`, `difficulty`, `habits` (array of `PlanHabitCreate` mapping `habit_id`, `start_time`, `end_time`, `day_config`), `is_public`.
+* `PUT /api/v1/plans/{plan_id}`: Updates a plan's fields and habit mappings (owner only).
+* `DELETE /api/v1/plans/{plan_id}`: Deletes a plan (owner only).
+* `POST /api/v1/plans/{plan_id}/activate`: Deactivates old user plans and activates the given plan starting today.
+* `GET /api/v1/plans/{plan_id}/habits`: Lists habits associated with a specific plan (returns timing metadata).
 
 ### 5.4. Execution & Daily Logging Operations
-* `GET /today/`: Dynamically computes and returns the user's localized execution requirements for the current 24-hour cycle.
-* `POST /today/habit/complete`: The most critical endpoint. Transmits proof of execution to the backend.
+* `GET /api/v1/today/`: Dynamically computes, triggers backfill processing for up to 7 unprocessed past days, and returns the user's localized execution logs for the current day.
+* `POST /api/v1/today/habit/complete`: Updates a pending daily log to "done", assigning its `late_flag` based on timing constraints.
   * **Payload**: `habit_id`, `note` (optional context).
-* `POST /today/process`: Forces the chron-boundary processing logic to evaluate unhandled pending logs into failed states and compute statistical rank degradation.
+* `POST /api/v1/today/process`: Forces day processing: marks pending logs as missed, applies penalties, updates streaks/ranks.
 
 ### 5.5. Statistical & Profile Operations
-* `GET /stats/profile`: Returns the user's aggregated `UserStat` record, containing current total points, historical streak metrics, and current computed ranking tier.
+* `GET /api/v1/stats/profile`: Returns the user's aggregated `UserStat` record, containing total points, current streak, max streak, and computed ranking.
 
 ---
 
@@ -148,11 +152,17 @@ Run the server using Uvicorn. The `--reload` flag provides hot-reloading for loc
 uvicorn app.main:app --reload
 ```
 
-### 6.6. Comprehensive Test Suite
-Validate the entire scoring matrix, boundary limits, and authentication logic via PyTest:
-```bash
-pytest
-```
+### 6.6. Comprehensive Test Suite & Seeding
+Validate the entire scoring matrix, boundary limits, and authentication logic via PyTest or run the autonomous test runner and database seeder:
+* **Standard PyTest**:
+  ```bash
+  pytest
+  ```
+* **Autonomous Seeder & QA Tester**:
+  ```bash
+  venv\Scripts\python tests/auto_tester.py
+  ```
+  This command will clean the test database, seed 8-10 users, 50-100 habits, 20-30 plans, simulate 14 days of realistic usage, compile reports, and write `database_snapshot.json`.
 
 ---
 
