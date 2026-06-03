@@ -7,7 +7,7 @@ from datetime import date
 from app.models.user import User
 from app.models.habit import Habit
 from app.models.plan import Plan, PlanHabit, UserPlan
-from app.schemas.habit import HabitCreate, HabitResponse
+from app.schemas.habit import HabitCreate, HabitResponse, PlanHabitTimelineResponse
 from app.schemas.plan import PlanCreate, PlanResponse
 from app.core.time import get_current_time
 import logging
@@ -152,11 +152,25 @@ async def get_habits_for_plan(db: AsyncSession, plan_id: int, current_user: User
         select(PlanHabit)
         .where(PlanHabit.plan_id == plan_id)
         .options(selectinload(PlanHabit.habit))
+        .order_by(PlanHabit.start_time)
     )
+
     result = await db.execute(stmt)
     plan_habits = result.scalars().all()
 
-    return [ph.habit for ph in plan_habits]
+    return [
+        PlanHabitTimelineResponse(
+            id=ph.habit.id,
+            name=ph.habit.name,
+            category=ph.habit.category,
+            difficulty=ph.habit.difficulty,
+            base_score=ph.habit.base_score,
+            start_time=ph.start_time,
+            end_time=ph.end_time,
+            day_config=ph.day_config,
+        )
+        for ph in plan_habits
+    ]
 
 
 # ---------------------------------------------------------------------------

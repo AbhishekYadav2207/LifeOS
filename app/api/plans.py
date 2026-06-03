@@ -6,7 +6,7 @@ from app.api.dependencies import get_db, get_current_user
 from app.models.user import User
 from app.schemas.responses import BaseResponse
 from app.schemas.plan import PlanCreate, PlanResponse
-from app.schemas.habit import HabitResponse
+from app.schemas.habit import HabitResponse, PlanHabitTimelineResponse
 from app.services import plan_svc
 
 router = APIRouter(prefix="/plans", tags=["Plans"])
@@ -116,7 +116,7 @@ async def activate_plan(
 
 @router.get(
     "/{plan_id}/habits",
-    response_model=BaseResponse[List[HabitResponse]],
+    response_model=BaseResponse[List[PlanHabitTimelineResponse]],
     summary="Get habits for a specific plan",
     description=(
         "Returns all habits belonging to the given plan if public or owned by the user. "

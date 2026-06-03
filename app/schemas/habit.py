@@ -1,3 +1,5 @@
+from datetime import time
+
 from pydantic import BaseModel
 from typing import Optional
 from app.models.enums import HabitCategory
@@ -20,3 +22,14 @@ class HabitResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+class PlanHabitTimelineResponse(BaseModel):
+    id: int
+    name: str
+    category: str
+    difficulty: str
+    base_score: int
+
+    start_time: time | None
+    end_time: time | None
+    day_config: str | None
