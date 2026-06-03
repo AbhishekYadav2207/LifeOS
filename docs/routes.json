@@ -1,0 +1,182 @@
+[
+  {
+    "path": "/api/v1/auth/register",
+    "method": "POST",
+    "auth": false,
+    "request_model": "UserCreate",
+    "response_model": "BaseResponse_UserResponse_",
+    "summary": "Register",
+    "description": "Registers a new user and returns their basic info."
+  },
+  {
+    "path": "/api/v1/auth/login",
+    "method": "POST",
+    "auth": false,
+    "request_model": "UserLogin",
+    "response_model": "BaseResponse_TokenData_",
+    "summary": "Login",
+    "description": "Authenticates a user and returns a JWT access token."
+  },
+  {
+    "path": "/api/v1/plans/habits",
+    "method": "GET",
+    "auth": true,
+    "request_model": null,
+    "response_model": "BaseResponse_List_HabitResponse__",
+    "summary": "List all habits",
+    "description": "Returns all public habits and habits created by the current user."
+  },
+  {
+    "path": "/api/v1/plans/habits",
+    "method": "POST",
+    "auth": true,
+    "request_model": "HabitCreate",
+    "response_model": "BaseResponse_HabitResponse_",
+    "summary": "Create a new habit",
+    "description": ""
+  },
+  {
+    "path": "/api/v1/plans/habits/public",
+    "method": "GET",
+    "auth": false,
+    "request_model": null,
+    "response_model": "BaseResponse_List_HabitResponse__",
+    "summary": "List public habits",
+    "description": "Returns all public habits. Optionally filter by category."
+  },
+  {
+    "path": "/api/v1/plans/habits/mine",
+    "method": "GET",
+    "auth": true,
+    "request_model": null,
+    "response_model": "BaseResponse_List_HabitResponse__",
+    "summary": "List my habits",
+    "description": "Returns habits created by the current user. Optionally filter by category."
+  },
+  {
+    "path": "/api/v1/plans/habits/{habit_id}",
+    "method": "PUT",
+    "auth": true,
+    "request_model": "HabitCreate",
+    "response_model": "BaseResponse_HabitResponse_",
+    "summary": "Update a habit",
+    "description": ""
+  },
+  {
+    "path": "/api/v1/plans/habits/{habit_id}",
+    "method": "DELETE",
+    "auth": true,
+    "request_model": null,
+    "response_model": "BaseResponse",
+    "summary": "Delete a habit",
+    "description": ""
+  },
+  {
+    "path": "/api/v1/plans/",
+    "method": "GET",
+    "auth": false,
+    "request_model": null,
+    "response_model": "BaseResponse_List_PlanResponse__",
+    "summary": "List public plans",
+    "description": "Returns all public plans with habits_count."
+  },
+  {
+    "path": "/api/v1/plans/",
+    "method": "POST",
+    "auth": true,
+    "request_model": "PlanCreate",
+    "response_model": "BaseResponse_PlanResponse_",
+    "summary": "Create a new plan",
+    "description": ""
+  },
+  {
+    "path": "/api/v1/plans/mine",
+    "method": "GET",
+    "auth": true,
+    "request_model": null,
+    "response_model": "BaseResponse_List_PlanResponse__",
+    "summary": "List my plans",
+    "description": "Returns plans created by the current user."
+  },
+  {
+    "path": "/api/v1/plans/{plan_id}",
+    "method": "PUT",
+    "auth": true,
+    "request_model": "PlanCreate",
+    "response_model": "BaseResponse_PlanResponse_",
+    "summary": "Update a plan",
+    "description": ""
+  },
+  {
+    "path": "/api/v1/plans/{plan_id}",
+    "method": "DELETE",
+    "auth": true,
+    "request_model": null,
+    "response_model": "BaseResponse",
+    "summary": "Delete a plan",
+    "description": ""
+  },
+  {
+    "path": "/api/v1/plans/{plan_id}/activate",
+    "method": "POST",
+    "auth": true,
+    "request_model": null,
+    "response_model": "BaseResponse",
+    "summary": "Activate a plan for the current user",
+    "description": "Deactivates all existing active plans and activates the given plan starting today."
+  },
+  {
+    "path": "/api/v1/plans/{plan_id}/habits",
+    "method": "GET",
+    "auth": true,
+    "request_model": null,
+    "response_model": "BaseResponse_List_PlanHabitTimelineResponse__",
+    "summary": "Get habits for a specific plan",
+    "description": "Returns all habits belonging to the given plan if public or owned by the user. Uses selectinload to avoid N+1 queries. Returns 404 if the plan does not exist."
+  },
+  {
+    "path": "/api/v1/execution/today",
+    "method": "GET",
+    "auth": true,
+    "request_model": null,
+    "response_model": "BaseResponse_List_TodaysHabitResponse__",
+    "summary": "Get Today",
+    "description": "Fetch today's habits based on active plan.\n\nReturns:\n- data: list of today's habits with status and points\n- meta: live preview of progress and auto-processed missed day info"
+  },
+  {
+    "path": "/api/v1/execution/habit/complete",
+    "method": "POST",
+    "auth": true,
+    "request_model": "LogCompletionRequest",
+    "response_model": "BaseResponse_LogResponse_",
+    "summary": "Complete Habit",
+    "description": "Mark a daily habit as completed."
+  },
+  {
+    "path": "/api/v1/stats/profile",
+    "method": "GET",
+    "auth": true,
+    "request_model": null,
+    "response_model": "BaseResponse_UserStatResponse_",
+    "summary": "Get Profile",
+    "description": "Get the current aggregated stats for the user's profile."
+  },
+  {
+    "path": "/api/v1/stats/process-day",
+    "method": "POST",
+    "auth": true,
+    "request_model": null,
+    "response_model": "BaseResponse_Dict_str__Any__",
+    "summary": "Process Day",
+    "description": "Manual trigger to process the previous day's logs.\nUses the user's timezone to determine \"yesterday\"."
+  },
+  {
+    "path": "/",
+    "method": "GET",
+    "auth": false,
+    "request_model": null,
+    "response_model": null,
+    "summary": "Root",
+    "description": ""
+  }
+]

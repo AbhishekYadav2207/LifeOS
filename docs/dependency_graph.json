@@ -1,0 +1,75 @@
+{
+  "User": {
+    "dependencies": [],
+    "dependents": [
+      "Habit",
+      "Plan",
+      "UserPlan",
+      "DailyLog",
+      "DailySummary",
+      "UserStat",
+      "UserPlanStat"
+    ]
+  },
+  "Habit": {
+    "dependencies": [
+      "User"
+    ],
+    "dependents": [
+      "PlanHabit",
+      "DailyLog"
+    ]
+  },
+  "Plan": {
+    "dependencies": [
+      "User"
+    ],
+    "dependents": [
+      "PlanHabit",
+      "UserPlan",
+      "DailyLog",
+      "UserPlanStat"
+    ]
+  },
+  "PlanHabit": {
+    "dependencies": [
+      "Plan",
+      "Habit"
+    ],
+    "dependents": []
+  },
+  "UserPlan": {
+    "dependencies": [
+      "User",
+      "Plan"
+    ],
+    "dependents": []
+  },
+  "DailyLog": {
+    "dependencies": [
+      "User",
+      "Plan",
+      "Habit"
+    ],
+    "dependents": []
+  },
+  "DailySummary": {
+    "dependencies": [
+      "User"
+    ],
+    "dependents": []
+  },
+  "UserStat": {
+    "dependencies": [
+      "User"
+    ],
+    "dependents": []
+  },
+  "UserPlanStat": {
+    "dependencies": [
+      "User",
+      "Plan"
+    ],
+    "dependents": []
+  }
+}

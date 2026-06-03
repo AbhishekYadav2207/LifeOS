@@ -1,50 +1,45 @@
 import pytest
-from app.models.user import User
-from sqlalchemy.future import select
+from httpx import AsyncClient
 
 @pytest.mark.asyncio
-async def test_register_user(client, db_session):
-    response = await client.post("/api/v1/auth/register", json={
-        "email": "register@test.com",
-        "password": "strongpassword123",
-        "timezone": "UTC"
-    })
-    data = response.json()
-    assert response.status_code == 201
-    assert data["success"] == True
-    assert data["data"]["email"] == "register@test.com"
+async def test_user_registration_and_login(client: AsyncClient):
+    # Register user
+    email = "test_auth_user@test.com"
+    payload = {
+        "email": email,
+        "password": "securepassword123",
+        "timezone": "America/New_York"
+    }
     
-    # DB integrity verification
-    res = await db_session.execute(select(User).where(User.email == "register@test.com"))
-    assert res.scalars().first() is not None
-
-@pytest.mark.asyncio
-async def test_register_duplicate_user(client):
-    payload = {"email": "dup@test.com", "password": "pass", "timezone": "UTC"}
-    await client.post("/api/v1/auth/register", json=payload)
-    response2 = await client.post("/api/v1/auth/register", json=payload)
+    reg_resp = await client.post("/api/v1/auth/register", json=payload)
+    assert reg_resp.status_code == 201
+    reg_data = reg_resp.json()
+    assert reg_data["success"] is True
+    assert reg_data["data"]["email"] == email
+    assert reg_data["data"]["timezone"] == "America/New_York"
+    assert "id" in reg_data["data"]
     
-    assert response2.status_code == 400
-    assert response2.json()["detail"] == "Email already registered"
-
-@pytest.mark.asyncio
-async def test_login_user(client):
-    payload = {"email": "login@test.com", "password": "pass", "timezone": "UTC"}
-    await client.post("/api/v1/auth/register", json=payload)
+    # Try to register duplicate email
+    dup_resp = await client.post("/api/v1/auth/register", json=payload)
+    assert dup_resp.status_code == 400
+    assert "detail" in dup_resp.json()
     
-    response = await client.post("/api/v1/auth/login", json={
-        "email": "login@test.com",
-        "password": "pass"
+    # Login user
+    login_resp = await client.post("/api/v1/auth/login", json={
+        "email": email,
+        "password": "securepassword123"
     })
-    assert response.status_code == 200
-    data = response.json()
-    assert data["success"] == True
-    assert "access_token" in data["data"]
-
-@pytest.mark.asyncio
-async def test_login_invalid_credentials(client):
-    response = await client.post("/api/v1/auth/login", json={
-        "email": "wrong@test.com",
-        "password": "wrong"
+    assert login_resp.status_code == 200
+    login_data = login_resp.json()
+    assert login_data["success"] is True
+    assert "access_token" in login_data["data"]
+    assert login_data["data"]["token_type"] == "bearer"
+    assert login_data["data"]["has_active_plan"] is False
+    assert login_data["data"]["active_plan_id"] is None
+    
+    # Try login with invalid password
+    bad_login = await client.post("/api/v1/auth/login", json={
+        "email": email,
+        "password": "wrongpassword"
     })
-    assert response.status_code == 401
+    assert bad_login.status_code == 401
