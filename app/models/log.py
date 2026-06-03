@@ -1,4 +1,5 @@
-from sqlalchemy import Column, Integer, String, Date, DateTime, Boolean, ForeignKey, UniqueConstraint, Enum as SQLEnum, Float, JSON
+from sqlalchemy import Column, Integer, String, Date, DateTime, Boolean, ForeignKey, UniqueConstraint, Enum as SQLEnum, Float, Index
+from sqlalchemy.dialects.postgresql import JSONB
 from app.core.database import Base
 from app.models.enums import HabitCategory
 
@@ -26,14 +27,18 @@ class DailyLog(Base):
     # LifeOS v2 Progression Engine fields
     scoring_version = Column(String, default="v1", nullable=False)
     profile_id = Column(Integer, ForeignKey("habit_progression_profiles.id", ondelete="SET NULL"), nullable=True)
-    profile_snapshot_json = Column(JSON, nullable=True)
-    formula_snapshot_json = Column(JSON, nullable=True)
+    profile_snapshot_json = Column(JSONB, nullable=True)
+    formula_snapshot_json = Column(JSONB, nullable=True)
     quality_multiplier = Column(Float, default=1.0, nullable=False)
     consistency_multiplier = Column(Float, default=1.0, nullable=False)
     mastery_bonus = Column(Integer, default=0, nullable=False)
 
     __table_args__ = (
         UniqueConstraint('user_id', 'habit_id', 'date', name='uix_user_habit_date'),
+        Index('ix_daily_logs_user_id_date', 'user_id', 'date'),
+        Index('ix_daily_logs_user_id_status', 'user_id', 'status'),
+        Index('ix_daily_logs_plan_id', 'plan_id'),
+        Index('ix_daily_logs_habit_id', 'habit_id'),
     )
 
 class DailySummary(Base):

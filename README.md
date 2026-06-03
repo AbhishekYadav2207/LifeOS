@@ -13,7 +13,7 @@ This document serves as the exhaustive specification for the application, detail
 The backend relies on modern, cutting-edge Python standards to ensure concurrent execution and strict typing.
 
 * **Primary Framework**: **FastAPI** — Chosen for its Starlette-based asynchronous capabilities and seamless integration with Pydantic for validation. It guarantees blazing-fast concurrent request handling with minimal overhead.
-* **Database Engine**: **SQLite (Async)** via `aiosqlite`. While currently configured for localized fast development and deployment, the abstraction layer is explicitly designed for a seamless, zero-downtime migration to PostgreSQL in production environments.
+* **Database Engine**: **PostgreSQL (Async)** via `asyncpg`. Configured for robust production-ready concurrent execution with native transaction isolation.
 * **ORM & Migrations**: **SQLAlchemy (v2.0+)** paired with **Alembic**. SQLAlchemy acts as the relational object mapper enforcing referential integrity, while Alembic maintains rigid, version-controlled schema definitions across iterations.
 * **Data Validation & Serialization**: **Pydantic (v2)** — Implements strict, mathematically provable data contract enforcement at the boundary layer, completely preventing malformed payloads from entering the business logic.
 * **Security & Authentication**: **JSON Web Tokens (JWT)** combined with **BCrypt** hashing. Passwords are never stored in plaintext, and session security is managed via stateless tokens with configurable expirations.
@@ -121,7 +121,7 @@ Follow these strict procedures to initialize the backend environment securely in
 ### 6.1. Environment Configuration
 Create a `.env` file in the root directory and configure the fundamental environmental overrides:
 ```env
-DATABASE_URL="sqlite+aiosqlite:///./lifeos.db"
+DATABASE_URL="postgresql+asyncpg://lifeos:lifeos789@localhost:5432/lifeos"
 SECRET_KEY="<strong-cryptographic-hash>"
 ALGORITHM="HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES=30
@@ -141,7 +141,7 @@ pip install -r requirements.txt
 ```
 
 ### 6.4. Database Migration Pipeline
-Provision the SQLite database by running Alembic forward to the `head` revision, which constructs the tables dynamically based on SQLAlchemy models:
+Provision the PostgreSQL database by running Alembic forward to the `head` revision, which constructs the tables dynamically based on SQLAlchemy models:
 ```bash
 alembic upgrade head
 ```

@@ -6,7 +6,7 @@ The project is a FastAPI-based backend architecture implementing a gamified habi
 * **Service Structure**: Business logic is separated into service modules in `app/services/`: `user_svc.py`, `plan_svc.py`, `execution_svc.py`, and `scoring_svc.py`.
 * **Dependency Injection**: Located in `app/api/dependencies.py`. It injects the database session (`get_db`) and parses the JWT token to fetch the current user (`get_current_user`).
 * **Auth Flow**: Uses JSON Web Tokens (JWT) signed with HS256. Clients register and log in to receive a token. Authenticated requests include the token in the `Authorization: Bearer <token>` header.
-* **Database Flow**: Uses SQLAlchemy ORM with async SQLite database `sqlite+aiosqlite`. Session is yielded per request using an async generator dependency.
+* **Database Flow**: Uses SQLAlchemy ORM with async PostgreSQL database `postgresql+asyncpg`. Session is yielded per request using an async generator dependency.
 
 ## 2. Database Table Details
 

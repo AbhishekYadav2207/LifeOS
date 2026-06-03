@@ -96,8 +96,8 @@ async def prestige(
     """
     Triggers a prestige reset if the user has reached the Transcendent rank.
     """
-    # 1. Fetch user stats
-    stat_q = select(UserStat).where(UserStat.user_id == current_user.id)
+    # 1. Fetch user stats and lock the row
+    stat_q = select(UserStat).where(UserStat.user_id == current_user.id).with_for_update()
     user_stat = (await db.execute(stat_q)).scalars().first()
     if not user_stat:
         raise HTTPException(status_code=404, detail="Stats not found")

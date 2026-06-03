@@ -443,9 +443,9 @@ async def activate_plan(db: AsyncSession, plan_id: int, current_user: User) -> U
 
     local_today = get_current_time(current_user.timezone).date()
 
-    # Deactivate existing active plans
+    # Deactivate existing active plans and lock the rows
     active_result = await db.execute(
-        select(UserPlan).where(UserPlan.user_id == current_user.id, UserPlan.active == True)
+        select(UserPlan).where(UserPlan.user_id == current_user.id, UserPlan.active == True).with_for_update()
     )
     for p in active_result.scalars().all():
         p.active = False

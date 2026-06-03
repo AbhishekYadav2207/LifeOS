@@ -42,13 +42,15 @@ class UserPlan(Base):
 
     __table_args__ = (
         # Enforce at most one active plan per user at the DB level.
-        # SQLite supports partial indexes: this creates
-        #   CREATE UNIQUE INDEX uix_one_active_plan ON user_plans (user_id) WHERE active = 1
+        # PostgreSQL supports partial indexes: this creates
+        #   CREATE UNIQUE INDEX uix_one_active_plan ON user_plans (user_id) WHERE active = true
         Index(
             "uix_one_active_plan",
             user_id,
             unique=True,
-            sqlite_where=(active == True),
+            postgresql_where=(active == True),
         ),
+        Index("ix_user_plans_user_active", "user_id", "active"),
+        Index("ix_user_plans_plan_id", "plan_id"),
     )
 

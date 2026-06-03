@@ -10,13 +10,19 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import NullPool
 
 # 1. Override database URL and engine before any other imports
-TEST_DB_URL = "sqlite+aiosqlite:///./test_lifeos.db"
+TEST_DB_URL = "postgresql+asyncpg://lifeos:lifeos789@localhost:5432/lifeos"
 os.environ["DATABASE_URL"] = TEST_DB_URL
 
 # Import app.db and override (using NullPool to avoid event loop bindings)
 import app.db
 app.db.DATABASE_URL = TEST_DB_URL
-app.db.engine = create_async_engine(TEST_DB_URL, echo=False, future=True, poolclass=NullPool)
+app.db.engine = create_async_engine(
+    TEST_DB_URL,
+    echo=False,
+    future=True,
+    poolclass=NullPool,
+    connect_args={"server_settings": {"search_path": "test"}}
+)
 app.db.AsyncSessionLocal = sessionmaker(
     bind=app.db.engine,
     class_=AsyncSession,
@@ -25,7 +31,12 @@ app.db.AsyncSessionLocal = sessionmaker(
 
 # Import app.core.database and override (using NullPool to avoid event loop bindings)
 import app.core.database as core_db
-core_db.engine = create_async_engine(TEST_DB_URL, echo=False, poolclass=NullPool)
+core_db.engine = create_async_engine(
+    TEST_DB_URL,
+    echo=False,
+    poolclass=NullPool,
+    connect_args={"server_settings": {"search_path": "test"}}
+)
 core_db.AsyncSessionLocal = async_sessionmaker(
     bind=core_db.engine,
     class_=AsyncSession,
@@ -38,16 +49,17 @@ from app.main import app
 from app.models import Base
 from app.core.database import get_db
 from httpx import AsyncClient, ASGITransport
+from sqlalchemy import text
 
 @pytest.fixture(autouse=True)
 async def setup_db():
-    # Delete database if exists
-    if os.path.exists("./test_lifeos.db"):
-        try:
-            os.remove("./test_lifeos.db")
-        except OSError:
-            pass
-            
+    # Connect to default schema/database to create test schema
+    default_engine = create_async_engine(TEST_DB_URL, poolclass=NullPool)
+    async with default_engine.begin() as conn:
+        await conn.execute(text("DROP SCHEMA IF EXISTS test CASCADE;"))
+        await conn.execute(text("CREATE SCHEMA test;"))
+    await default_engine.dispose()
+        
     # Create tables
     async with core_db.engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
@@ -55,13 +67,10 @@ async def setup_db():
     yield
     
     # Cleanup after test
-    async with core_db.engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
-    if os.path.exists("./test_lifeos.db"):
-        try:
-            os.remove("./test_lifeos.db")
-        except OSError:
-            pass
+    default_engine = create_async_engine(TEST_DB_URL, poolclass=NullPool)
+    async with default_engine.begin() as conn:
+        await conn.execute(text("DROP SCHEMA IF EXISTS test CASCADE;"))
+    await default_engine.dispose()
 
 @pytest.fixture
 async def db_session():

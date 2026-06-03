@@ -1,7 +1,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.future import select
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import selectinload, joinedload
 from fastapi import HTTPException, status
 from datetime import date, datetime, timedelta, time
 from typing import List, Tuple
@@ -124,8 +124,8 @@ async def initialize_logs_for_today(db: AsyncSession, current_user: User, local_
                 "parameters": {}
             }
 
-        # Generate new logs from plan mapping
-        ph_query = select(PlanHabit).where(PlanHabit.plan_id == plan_id)
+        # Generate new logs from plan mapping, loading habit relations in a single query
+        ph_query = select(PlanHabit).where(PlanHabit.plan_id == plan_id).options(joinedload(PlanHabit.habit))
         ph_result = await db.execute(ph_query)
         plan_habits = ph_result.scalars().all()
         
@@ -139,9 +139,7 @@ async def initialize_logs_for_today(db: AsyncSession, current_user: User, local_
             if day_cfg == "weekends" and today_weekday < 5:
                 continue
                 
-            h_query = select(Habit).where(Habit.id == ph.habit_id)
-            h_result = await db.execute(h_query)
-            habit = h_result.scalars().first()
+            habit = ph.habit
             
             if not habit: continue
             
@@ -251,14 +249,14 @@ async def mark_habit_completed(db: AsyncSession, request: LogCompletionRequest, 
     ct = get_current_time(current_user.timezone)
     local_today = ct.date()
     
-    # Pre-flight query to get the log, start/end times, and configurable grace period
+    # Pre-flight query to get the log, lock the row, start/end times, and configurable grace period
     query = select(DailyLog, PlanHabit.start_time, PlanHabit.end_time, PlanHabit.grace_period_minutes, PlanHabit.late_threshold_minutes).join(
         PlanHabit, (PlanHabit.plan_id == DailyLog.plan_id) & (PlanHabit.habit_id == DailyLog.habit_id), isouter=True
     ).where(
         DailyLog.user_id == current_user.id,
         DailyLog.habit_id == request.habit_id,
         DailyLog.date == local_today
-    )
+    ).with_for_update(of=DailyLog)
     result = await db.execute(query)
     row = result.first()
     
@@ -270,8 +268,8 @@ async def mark_habit_completed(db: AsyncSession, request: LogCompletionRequest, 
     if log.status != "pending":
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Already completed or processed")
 
-    # Fetch UserStat to read current rank, energy, recovery tokens, etc.
-    stat_q = select(UserStat).where(UserStat.user_id == current_user.id)
+    # Fetch UserStat and lock the row to read current rank, energy, recovery tokens, etc.
+    stat_q = select(UserStat).where(UserStat.user_id == current_user.id).with_for_update()
     user_stat = (await db.execute(stat_q)).scalars().first()
     if not user_stat:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User stats not found")

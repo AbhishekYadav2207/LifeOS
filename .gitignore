@@ -22,3 +22,4 @@ debug.py
 .coverage
 scripts/
 database_snapshot.json
+data_validation/

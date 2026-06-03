@@ -88,7 +88,7 @@ async def process_day(db: AsyncSession, current_user: User, process_date: date) 
     query = select(DailyLog).where(
         DailyLog.user_id == current_user.id,
         DailyLog.date == process_date
-    )
+    ).with_for_update()
     result = await db.execute(query)
     logs = result.scalars().all()
     
@@ -125,8 +125,8 @@ async def process_day(db: AsyncSession, current_user: User, process_date: date) 
             total_score_change += log.awarded_points
             cat_scores[log.category] += log.awarded_points
             
-        # Update UserStat
-        stat_query = select(UserStat).where(UserStat.user_id == current_user.id)
+        # Update UserStat and lock the row
+        stat_query = select(UserStat).where(UserStat.user_id == current_user.id).with_for_update()
         user_stat = (await db.execute(stat_query)).scalars().first()
         
         if user_stat:
@@ -216,7 +216,7 @@ async def process_day(db: AsyncSession, current_user: User, process_date: date) 
 
     await db.flush()
 
-    stat_query = select(UserStat).where(UserStat.user_id == current_user.id)
+    stat_query = select(UserStat).where(UserStat.user_id == current_user.id).with_for_update()
     user_stat = (await db.execute(stat_query)).scalars().first()
     
     if not user_stat:

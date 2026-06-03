@@ -1,7 +1,7 @@
 # System Architecture
 
 ## 1. Overview
-The LifeOS Backend is built with FastAPI, utilizing asynchronous dependency injection to route API requests to dedicated business services. It uses SQLAlchemy (with `aiosqlite`) to interact with a SQLite database.
+The LifeOS Backend is built with FastAPI, utilizing asynchronous dependency injection to route API requests to dedicated business services. It uses SQLAlchemy (with `asyncpg`) to interact with a PostgreSQL database.
 
 ```mermaid
 graph TD
@@ -9,7 +9,7 @@ graph TD
     Router -->|Dependency Injection| DB[AsyncSession get_db]
     Router -->|Service Calls| SVC[Business Services]
     SVC -->|DB Queries / Updates| Models[SQLAlchemy Models]
-    Models -->|SQLite / aiosqlite| SQLite[(lifeos.db / test_lifeos.db)]
+    Models -->|PostgreSQL / asyncpg| Postgres[(PostgreSQL Database)]
 ```
 
 ## 2. Core Service Components

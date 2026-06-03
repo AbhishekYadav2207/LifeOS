@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, Enum as SQLEnum, UniqueConstraint, Float, DateTime
+from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, Enum as SQLEnum, UniqueConstraint, Float, DateTime, Index
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.core.database import Base
@@ -125,6 +125,8 @@ class HabitMastery(Base):
 
     __table_args__ = (
         UniqueConstraint("user_id", "habit_id", name="uix_user_habit_mastery"),
+        Index("ix_habit_mastery_user_habit", "user_id", "habit_id"),
+        Index("ix_habit_mastery_mastery_level", "mastery_level"),
     )
 
 
@@ -139,5 +141,7 @@ class HabitDependency(Base):
 
     __table_args__ = (
         UniqueConstraint("user_id", "parent_habit_id", "child_habit_id", name="uix_user_habit_chain"),
+        Index("ix_habit_dependencies_parent", "parent_habit_id"),
+        Index("ix_habit_dependencies_child", "child_habit_id"),
     )
 
