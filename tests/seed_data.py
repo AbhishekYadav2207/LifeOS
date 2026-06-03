@@ -419,3 +419,22 @@ async def seed_production_scale(client):
     # 6. Generate final snapshot
     await generate_database_snapshot()
     print("Scale seeding process fully complete!")
+
+import asyncio
+from httpx import AsyncClient, ASGITransport
+
+from app.main import app
+
+
+async def main():
+    transport = ASGITransport(app=app)
+
+    async with AsyncClient(
+        transport=transport,
+        base_url="http://testserver"
+    ) as client:
+        await seed_production_scale(client)
+
+
+if __name__ == "__main__":
+    asyncio.run(main())

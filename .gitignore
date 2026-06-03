@@ -21,3 +21,4 @@ out*.txt
 debug.py
 .coverage
 scripts/
+database_snapshot.json
