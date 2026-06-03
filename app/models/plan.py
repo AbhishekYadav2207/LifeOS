@@ -23,6 +23,8 @@ class PlanHabit(Base):
     start_time = Column(Time, nullable=True) # E.g., 08:00:00. Optional based on plan mapping
     end_time = Column(Time, nullable=True)   # E.g., 20:00:00 bounds for lateness logic
     day_config = Column(String, default="everyday")
+    grace_period_minutes = Column(Integer, default=15, nullable=False)
+    late_threshold_minutes = Column(Integer, default=120, nullable=False)
 
     # Relationships
     plan = relationship("Plan", back_populates="plan_habits")

@@ -1,20 +1,41 @@
-from sqlalchemy import Column, Integer, ForeignKey
+from sqlalchemy import Column, Integer, String, Date, DateTime, Float, ForeignKey, JSON, Enum as SQLEnum, UniqueConstraint
+from sqlalchemy.sql import func
 from app.core.database import Base
+from app.models.enums import HabitCategory
 
 class UserStat(Base):
     __tablename__ = "user_stats"
     
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), unique=True, nullable=False)
-    total_points = Column(Integer, default=0, nullable=False)
+    total_xp = Column(Integer, default=0, nullable=False)
     current_streak = Column(Integer, default=0, nullable=False)
     max_streak = Column(Integer, default=0, nullable=False)
     
-    # Category splits
+    @property
+    def total_points(self):
+        return self.total_xp
+
+    @total_points.setter
+    def total_points(self, value):
+        self.total_xp = value
+    
+    # Category splits (backward compatible)
     focus_points = Column(Integer, default=0, nullable=False)
     health_points = Column(Integer, default=0, nullable=False)
     discipline_points = Column(Integer, default=0, nullable=False)
     mind_points = Column(Integer, default=0, nullable=False)
+
+    # LifeOS v2 Progression Engine fields
+    energy_score = Column(Integer, default=100, nullable=False)
+    recovery_tokens = Column(Integer, default=1, nullable=False)
+    prestige_level = Column(Integer, default=0, nullable=False)
+    lifetime_xp = Column(Integer, default=0, nullable=False)
+    rank = Column(String, default="Beginner", nullable=False)
+    consistency_7d = Column(Float, default=0.0, nullable=False)
+    consistency_30d = Column(Float, default=0.0, nullable=False)
+    consistency_90d = Column(Float, default=0.0, nullable=False)
+
 
 class UserPlanStat(Base):
     __tablename__ = "user_plan_stats"
@@ -22,11 +43,80 @@ class UserPlanStat(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     plan_id = Column(Integer, ForeignKey("plans.id", ondelete="CASCADE"), nullable=False)
-    total_points = Column(Integer, default=0, nullable=False)
+    total_xp = Column(Integer, default=0, nullable=False)
+    
+    @property
+    def total_points(self):
+        return self.total_xp
+
+    @total_points.setter
+    def total_points(self, value):
+        self.total_xp = value
     current_streak = Column(Integer, default=0, nullable=False)
     max_streak = Column(Integer, default=0, nullable=False)
 
+    # Category splits
     focus_points = Column(Integer, default=0, nullable=False)
     health_points = Column(Integer, default=0, nullable=False)
     discipline_points = Column(Integer, default=0, nullable=False)
     mind_points = Column(Integer, default=0, nullable=False)
+
+
+class ScoreEvent(Base):
+    __tablename__ = "score_events"
+
+    event_id = Column(String, primary_key=True, index=True)  # UUID
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    date = Column(Date, nullable=False, index=True)
+    event_type = Column(String, nullable=False)  # habit_completed, perfect_day_bonus, admin_adjustment
+    old_xp = Column(Integer, nullable=False)
+    delta_xp = Column(Integer, nullable=False)
+    new_xp = Column(Integer, nullable=False)
+    reason = Column(String, nullable=True)
+    metadata_json = Column(JSON, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class CategoryProgression(Base):
+    __tablename__ = "category_progressions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    category = Column(SQLEnum(HabitCategory), nullable=False)
+    category_xp = Column(Integer, default=0, nullable=False)
+    category_level = Column(Integer, default=1, nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "category", name="uix_user_category_progression"),
+    )
+
+
+class SystemJob(Base):
+    __tablename__ = "system_jobs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    job_name = Column(String, unique=True, nullable=False)
+    last_run = Column(DateTime(timezone=True), nullable=True)
+    next_run = Column(DateTime(timezone=True), nullable=True)
+    status = Column(String, default="pending", nullable=False)  # pending, running, completed, failed
+
+
+class UserMilestone(Base):
+    __tablename__ = "user_milestones"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    milestone_type = Column(String, nullable=False)  # xp_reached, streak_reached, prestige_reached, completions_reached
+    value = Column(Integer, nullable=False)
+    achieved_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class ProgressionEvent(Base):
+    __tablename__ = "progression_events"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    event_type = Column(String, nullable=False, index=True)
+    payload = Column(JSON, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())

@@ -8,14 +8,16 @@ class LogCompletionRequest(BaseModel):
     note: Optional[str] = None
 
 class TodaysHabitResponse(BaseModel):
-    id: int # log id
+    id: int  # log id
     habit_id: int
     name: str
     category: HabitCategory
     difficulty: str
     base_score: int
+    base_xp: int = 10
     status: str
     awarded_points: int = 0
+    awarded_xp: int = 0
     completion_timestamp: Optional[datetime] = None
 
 class TodaySummary(BaseModel):
@@ -25,7 +27,9 @@ class TodaySummary(BaseModel):
     pending: int
     missed: int
     earned_points: int
+    earned_xp: int = 0
     possible_points: int
+    possible_xp: int = 0
     completion_pct: float
 
 class BackfillInfo(BaseModel):
@@ -45,6 +49,7 @@ class LogResponse(BaseModel):
     category: HabitCategory
     status: str
     awarded_points: int
+    awarded_xp: int = 0
     late_flag: bool
 
     class Config:

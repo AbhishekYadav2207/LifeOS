@@ -11,6 +11,8 @@ class PlanHabitCreate(BaseModel):
     start_time: Optional[time] = None
     end_time: Optional[time] = None
     day_config: Optional[str] = "everyday"
+    grace_period_minutes: Optional[int] = 15
+    late_threshold_minutes: Optional[int] = 120
 
 class PlanHabitResponse(BaseModel):
     id: int
@@ -18,6 +20,8 @@ class PlanHabitResponse(BaseModel):
     start_time: Optional[time]
     end_time: Optional[time]
     day_config: Optional[str]
+    grace_period_minutes: int
+    late_threshold_minutes: int
 
     class Config:
         from_attributes = True

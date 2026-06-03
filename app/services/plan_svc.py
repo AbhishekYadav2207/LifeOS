@@ -37,17 +37,76 @@ async def get_my_habits(db: AsyncSession, current_user: User, category: str | No
     return result.scalars().all()
 
 
+from app.models.habit import HabitProgressionProfile
+
 async def create_habit(db: AsyncSession, habit_data: HabitCreate, current_user: User) -> Habit:
     """Create a habit with ownership."""
     new_habit = Habit(
         name=habit_data.name,
         category=habit_data.category,
-        difficulty=habit_data.difficulty,
-        base_score=habit_data.base_score,
         created_by=current_user.id,
         is_public=habit_data.is_public,
     )
     db.add(new_habit)
+    await db.flush()
+
+    is_v2 = (
+        habit_data.estimated_duration_minutes is not None or
+        habit_data.frequency is not None or
+        habit_data.habit_type is not None
+    )
+
+    if is_v2:
+        duration = habit_data.estimated_duration_minutes if habit_data.estimated_duration_minutes is not None else 15
+        frequency = habit_data.frequency if habit_data.frequency is not None else "daily"
+        habit_type = habit_data.habit_type if habit_data.habit_type is not None else "active"
+
+        # DurationWeight
+        if duration <= 15: duration_w = 1.0
+        elif duration <= 45: duration_w = 1.5
+        elif duration <= 90: duration_w = 2.0
+        else: duration_w = 2.5
+
+        # FrequencyWeight
+        freq_cfg = frequency.lower().strip()
+        if freq_cfg in ["daily", "everyday"]: freq_w = 1.0
+        elif freq_cfg == "weekdays": freq_w = 1.2
+        elif freq_cfg == "weekends": freq_w = 1.5
+        else: freq_w = 1.8
+
+        # TypeWeight
+        type_cfg = habit_type.lower().strip()
+        if type_cfg == "passive": type_w = 0.5
+        elif type_cfg == "mental": type_w = 1.0
+        else: type_w = 1.5
+
+        coeff = duration_w + freq_w + type_w
+    else:
+        # Legacy request
+        duration = 15
+        frequency = "daily"
+        habit_type = "active"
+        
+        if habit_data.difficulty == "easy":
+            coeff = 1.0
+        elif habit_data.difficulty == "medium":
+            coeff = 1.5
+        else:
+            coeff = 2.0
+            
+        if habit_data.base_score is not None:
+            coeff = habit_data.base_score / 10.0
+
+    profile = HabitProgressionProfile(
+        habit_id=new_habit.id,
+        version=1,
+        estimated_duration_minutes=duration,
+        frequency=frequency,
+        habit_type=habit_type,
+        difficulty_coefficient=coeff,
+        is_active=True
+    )
+    db.add(profile)
     await db.commit()
     await db.refresh(new_habit)
     return new_habit
@@ -64,9 +123,79 @@ async def update_habit(db: AsyncSession, habit_id: int, habit_data: HabitCreate,
 
     habit.name = habit_data.name
     habit.category = habit_data.category
-    habit.difficulty = habit_data.difficulty
-    habit.base_score = habit_data.base_score
     habit.is_public = habit_data.is_public
+
+    is_v2 = (
+        habit_data.estimated_duration_minutes is not None or
+        habit_data.frequency is not None or
+        habit_data.habit_type is not None
+    )
+
+    if is_v2:
+        duration = habit_data.estimated_duration_minutes if habit_data.estimated_duration_minutes is not None else 15
+        frequency = habit_data.frequency if habit_data.frequency is not None else "daily"
+        habit_type = habit_data.habit_type if habit_data.habit_type is not None else "active"
+
+        # DurationWeight
+        if duration <= 15: duration_w = 1.0
+        elif duration <= 45: duration_w = 1.5
+        elif duration <= 90: duration_w = 2.0
+        else: duration_w = 2.5
+
+        # FrequencyWeight
+        freq_cfg = frequency.lower().strip()
+        if freq_cfg in ["daily", "everyday"]: freq_w = 1.0
+        elif freq_cfg == "weekdays": freq_w = 1.2
+        elif freq_cfg == "weekends": freq_w = 1.5
+        else: freq_w = 1.8
+
+        # TypeWeight
+        type_cfg = habit_type.lower().strip()
+        if type_cfg == "passive": type_w = 0.5
+        elif type_cfg == "mental": type_w = 1.0
+        else: type_w = 1.5
+
+        coeff = duration_w + freq_w + type_w
+    else:
+        # Legacy request
+        duration = 15
+        frequency = "daily"
+        habit_type = "active"
+        
+        if habit_data.difficulty == "easy":
+            coeff = 1.0
+        elif habit_data.difficulty == "medium":
+            coeff = 1.5
+        else:
+            coeff = 2.0
+            
+        if habit_data.base_score is not None:
+            coeff = habit_data.base_score / 10.0
+
+    active_p = habit.active_profile
+    if (not active_p or 
+        active_p.estimated_duration_minutes != duration or 
+        active_p.frequency != frequency or 
+        active_p.habit_type != habit_type or
+        active_p.difficulty_coefficient != coeff):
+        
+        if active_p:
+            active_p.is_active = False
+            new_version = active_p.version + 1
+        else:
+            new_version = 1
+
+        new_profile = HabitProgressionProfile(
+            habit_id=habit.id,
+            version=new_version,
+            estimated_duration_minutes=duration,
+            frequency=frequency,
+            habit_type=habit_type,
+            difficulty_coefficient=coeff,
+            is_active=True
+        )
+        db.add(new_profile)
+
     await db.commit()
     await db.refresh(habit)
     return habit
@@ -168,6 +297,8 @@ async def get_habits_for_plan(db: AsyncSession, plan_id: int, current_user: User
             start_time=ph.start_time,
             end_time=ph.end_time,
             day_config=ph.day_config,
+            grace_period_minutes=ph.grace_period_minutes,
+            late_threshold_minutes=ph.late_threshold_minutes,
         )
         for ph in plan_habits
     ]
@@ -213,7 +344,9 @@ async def create_plan(db: AsyncSession, plan_data: PlanCreate, current_user: Use
             habit_id=ph.habit_id,
             start_time=ph.start_time,
             end_time=ph.end_time,
-            day_config=ph.day_config
+            day_config=ph.day_config,
+            grace_period_minutes=ph.grace_period_minutes if ph.grace_period_minutes is not None else 15,
+            late_threshold_minutes=ph.late_threshold_minutes if ph.late_threshold_minutes is not None else 120
         )
         db.add(plan_habit)
 
@@ -265,7 +398,9 @@ async def update_plan(db: AsyncSession, plan_id: int, plan_data: PlanCreate, cur
             habit_id=ph.habit_id,
             start_time=ph.start_time,
             end_time=ph.end_time,
-            day_config=ph.day_config
+            day_config=ph.day_config,
+            grace_period_minutes=ph.grace_period_minutes if ph.grace_period_minutes is not None else 15,
+            late_threshold_minutes=ph.late_threshold_minutes if ph.late_threshold_minutes is not None else 120
         )
         db.add(plan_habit)
 

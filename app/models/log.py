@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Date, DateTime, Boolean, ForeignKey, UniqueConstraint, Enum as SQLEnum
+from sqlalchemy import Column, Integer, String, Date, DateTime, Boolean, ForeignKey, UniqueConstraint, Enum as SQLEnum, Float, JSON
 from app.core.database import Base
 from app.models.enums import HabitCategory
 
@@ -22,6 +22,15 @@ class DailyLog(Base):
     note = Column(String, nullable=True)
     late_flag = Column(Boolean, default=False)
     awarded_points = Column(Integer, default=0, nullable=False)
+
+    # LifeOS v2 Progression Engine fields
+    scoring_version = Column(String, default="v1", nullable=False)
+    profile_id = Column(Integer, ForeignKey("habit_progression_profiles.id", ondelete="SET NULL"), nullable=True)
+    profile_snapshot_json = Column(JSON, nullable=True)
+    formula_snapshot_json = Column(JSON, nullable=True)
+    quality_multiplier = Column(Float, default=1.0, nullable=False)
+    consistency_multiplier = Column(Float, default=1.0, nullable=False)
+    mastery_bonus = Column(Integer, default=0, nullable=False)
 
     __table_args__ = (
         UniqueConstraint('user_id', 'habit_id', 'date', name='uix_user_habit_date'),
