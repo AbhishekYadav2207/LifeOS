@@ -22,3 +22,8 @@ debug.py
 .coverage
 scripts/
 database_snapshot.json
+archive/
+data_validation/
+data_validation_for_migration/
+scratch/
+test_results_temp.json
