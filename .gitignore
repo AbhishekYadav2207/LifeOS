@@ -24,3 +24,6 @@ scripts/
 database_snapshot.json
 data_validation/
 data_validation_for_migration/
+archive/
+scratch/
+test_results_temp.json
